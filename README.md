@@ -1,4 +1,4 @@
-# 🎬 Ai H3 MiniMax Studio
+# 🎬 Ai-H3-Studio-Generator
 
 > สตูดิโอสร้างวิดีโอ AI บนเครื่องคุณเอง — รัน MiniMax H3 ผ่าน ComfyUI พร้อมคิวงาน, คลังมีเดีย, ต่อคลิปต่อเนื่อง, รวมคลิป และผู้ช่วยเขียน prompt ด้วย Gemma VLM
 

@@ -63,7 +63,7 @@ export function Sidebar({ onClose, onNavigate }: SidebarProps) {
 
         <div className="flex min-w-0 flex-col leading-tight">
           <span className="truncate text-sm font-bold tracking-tight">
-            MiniMax H3 Studio
+            Ai-H3-Studio-Generator
           </span>
           <span className="text-[11px] text-muted-foreground">
             AI Video Generation
@@ -115,7 +115,16 @@ export function Sidebar({ onClose, onNavigate }: SidebarProps) {
       {/* เวอร์ชัน */}
       <div className="border-t border-sidebar-border px-4 py-3">
         <p className="text-[11px] text-muted-foreground">
-          H3 Studio v0.1.0 • Local Build
+          Dev. By{" "}
+          <a
+            href="https://www.facebook.com/tonlikeit"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-foreground transition-colors"
+          >
+            Ton Like IT
+          </a>{" "}
+          ❤️
         </p>
       </div>
     </aside>

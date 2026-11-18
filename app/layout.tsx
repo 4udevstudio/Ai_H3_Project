@@ -32,7 +32,7 @@ const plexMono = IBM_Plex_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'MiniMax H3 Studio',
+  title: 'Ai-H3-Studio-Generator',
   description: 'AI Video Generation',
 }
 
