@@ -73,7 +73,7 @@
 | `gemma4_e4b_it_fp8_scaled.safetensors` | `models/text_encoders/` | สร้าง prompt จากรูป (VLM) |
 | `MiniMax-H3-FL2VA-Pruned-Q3_K_M.gguf` | `models/unet/` | T2V + FL2V (Low VRAM) |
 | `MiniMax-H3-Ref2VA-Pruned-Q3_K_M.gguf` | `models/unet/` | REF2V (Low VRAM) |
-| `qwen3vl-32B-MiniMax-H3-Q4_K_M.gguf` | `models/clip/` | CLIP (Low VRAM) |
+| `qwen3vl-32B-MiniMax-H3-Q4_K_M.gguf` | `models/text_encoders/` | CLIP (Low VRAM) |
 
 ### 1.4 พอร์ตที่ใช้
 
