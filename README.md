@@ -50,7 +50,7 @@
 | ซอฟต์แวร์ | เวอร์ชัน | ใช้ทำอะไร | ดาวน์โหลด |
 |---|---|---|---|
 | **Node.js** | 20 LTS ขึ้นไป (แนะนำ 22 LTS) | รันหน้าเว็บ Next.js | https://nodejs.org |
-| **Python** | **3.11** | รัน FastAPI backend | https://python.org |
+| **Python** | **3.11** | รัน FastAPI backend | https://www.python.org/downloads/release/python-3119/ |
 | **Git** | ล่าสุด | clone / อัปเดตโค้ด | https://git-scm.com |
 | **FFmpeg + FFprobe** | 6.x ขึ้นไป | สร้าง thumbnail, อ่านความยาว, ดึงเฟรม, รวมคลิป | https://www.gyan.dev/ffmpeg/builds/ |
 | **ComfyUI** | **0.45 ขึ้นไป** | เครื่องสร้างวิดีโอ + VLM | https://github.com/comfyanonymous/ComfyUI |
@@ -71,6 +71,9 @@
 | `pika_h3_flex_fl2va_v1_bf16.safetensors` | `models/loras/` | LoRA เร่งความเร็ว (FL2VA) |
 | `pika_h3_flex_ref2va_v1_bf16.safetensors` | `models/loras/` | LoRA เร่งความเร็ว (REF2VA) |
 | `gemma4_e4b_it_fp8_scaled.safetensors` | `models/text_encoders/` | สร้าง prompt จากรูป (VLM) |
+| `MiniMax-H3-FL2VA-Pruned-Q3_K_M.gguf` | `models/unet/` | T2V + FL2V (Low VRAM) |
+| `MiniMax-H3-Ref2VA-Pruned-Q3_K_M.gguf` | `models/unet/` | REF2V (Low VRAM) |
+| `qwen3vl-32B-MiniMax-H3-Q4_K_M.gguf` | `models/clip/` | CLIP (Low VRAM) |
 
 ### 1.4 พอร์ตที่ใช้
 
@@ -277,6 +280,12 @@ start.bat
 - **Duration: 5 / 8 / 10 / 12 / 15 วินาที**
 - Steps, Seed (-1 = สุ่ม), Task adapter, LoRA
 - Negative prompt (เฉพาะ REF2VA)
+
+**Low VRAM Mode (GGUF)**
+- รองรับ GPU VRAM 8-12 GB
+- ใช้โมเดล quantized (Q3_K_M / Q4_K_M) ลด VRAM 40-50%
+- 3 โหมด: T2V / FL2VA / REF2VA (Low VRAM)
+- คุณภาพใกล้เคียง bf16 แต่ใช้ VRAM น้อยกว่ามาก
 
 **อื่น ๆ**
 

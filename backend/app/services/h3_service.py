@@ -71,6 +71,10 @@ WORKFLOW_REF2VA = "REF2VA"
 WORKFLOW_T2V = "T2V"
 WORKFLOW_FL2VA = "FL2VA"
 
+WORKFLOW_T2V_LOW = "T2V_LOW"
+WORKFLOW_FL2VA_LOW = "FL2VA_LOW"
+WORKFLOW_REF2VA_LOW = "REF2VA_LOW"
+
 
 def _normalize_job_type(job_type: Optional[str]) -> str:
     """
@@ -347,6 +351,68 @@ def _build_t2v_progress_config(workflow: dict[str, Any]) -> dict[str, Any]:
         "node_messages": node_messages,
     }
 
+def _build_t2v_gguf_progress_config(workflow):
+    save_video_node_id = workflow_service.get_save_video_node_id(workflow)
+    progress_map = {"217": (5, 35), "213": (35, 90), "211": (90, 95), "210": (95, 97), "216": (97, 98)}
+    node_messages = {
+        "217": "ComfyUI กำลัง encode prompt (GGUF)",
+        "213": "ComfyUI กำลัง sampling (GGUF)",
+        "211": "ComfyUI กำลัง decode video VAE",
+        "210": "ComfyUI กำลัง decode audio VAE",
+        "216": "ComfyUI กำลังประกอบวิดีโอ",
+    }
+    if save_video_node_id:
+        progress_map[save_video_node_id] = (99, 99)
+        node_messages[save_video_node_id] = "ComfyUI กำลังบันทึกวิดีโอ"
+    return {
+        "workflow_type": WORKFLOW_T2V_LOW,
+        "main_sampler_id": "213", "main_create_video_id": "216",
+        "sigmas_node_id": "221", "save_video_node_id": save_video_node_id,
+        "progress_map": progress_map, "node_messages": node_messages,
+    }
+
+
+def _build_fl2va_gguf_progress_config(workflow):
+    save_video_node_id = workflow_service.get_save_video_node_id(workflow)
+    progress_map = {"215": (5, 35), "211": (35, 90), "209": (90, 95), "208": (95, 97), "214": (97, 98)}
+    node_messages = {
+        "215": "ComfyUI กำลัง encode prompt + first frame (GGUF)",
+        "211": "ComfyUI กำลัง sampling (GGUF)",
+        "209": "ComfyUI กำลัง decode video VAE",
+        "208": "ComfyUI กำลัง decode audio VAE",
+        "214": "ComfyUI กำลังประกอบวิดีโอ",
+    }
+    if save_video_node_id:
+        progress_map[save_video_node_id] = (99, 99)
+        node_messages[save_video_node_id] = "ComfyUI กำลังบันทึกวิดีโอ"
+    return {
+        "workflow_type": WORKFLOW_FL2VA_LOW,
+        "main_sampler_id": "211", "main_create_video_id": "214",
+        "sigmas_node_id": "219", "save_video_node_id": save_video_node_id,
+        "progress_map": progress_map, "node_messages": node_messages,
+    }
+
+
+def _build_ref2va_gguf_progress_config(workflow):
+    save_video_node_id = workflow_service.get_save_video_node_id(workflow)
+    progress_map = {"136": (5, 35), "125": (35, 90), "122": (90, 95), "121": (95, 97), "152": (97, 98)}
+    node_messages = {
+        "136": "ComfyUI กำลัง encode reference + prompt (GGUF)",
+        "125": "ComfyUI กำลัง sampling (GGUF)",
+        "122": "ComfyUI กำลัง decode video VAE",
+        "121": "ComfyUI กำลัง decode audio VAE",
+        "152": "ComfyUI กำลังประกอบวิดีโอ",
+    }
+    if save_video_node_id:
+        progress_map[save_video_node_id] = (99, 99)
+        node_messages[save_video_node_id] = "ComfyUI กำลังบันทึกวิดีโอ"
+    return {
+        "workflow_type": WORKFLOW_REF2VA_LOW,
+        "main_sampler_id": "125", "main_create_video_id": "152",
+        "sigmas_node_id": "147", "save_video_node_id": save_video_node_id,
+        "progress_map": progress_map, "node_messages": node_messages,
+    }
+
 
 def process_job(job: "QueueJob") -> None:
     """
@@ -433,6 +499,49 @@ def process_job(job: "QueueJob") -> None:
         )
 
         progress_config = _build_ref2va_progress_config(workflow)
+
+    elif workflow_type == WORKFLOW_T2V_LOW:
+        job.message = "ประกอบ workflow T2V (Low VRAM / GGUF)"
+        workflow = workflow_service.build_t2v_gguf_workflow(
+            prompt=job.prompt, seed=job.seed,
+            duration=getattr(job, "duration_seconds", None) or 5,
+            aspect_ratio=getattr(job, "aspect_ratio", None) or "16:9 (Widescreen)",
+            megapixels=_megapixels_for_resolution(job.resolution),
+            filename_prefix=f"video/H3_Studio_T2V_LOW_{job.id[:8]}",
+        )
+        progress_config = _build_t2v_gguf_progress_config(workflow)
+
+    elif workflow_type == WORKFLOW_FL2VA_LOW:
+        first_name = getattr(job, "first_frame_name", None)
+        if not first_name and job.reference_names:
+            first_name = job.reference_names[0]
+        if not first_name:
+            raise ValueError("FL2VA (Low VRAM) ต้องมี first frame")
+
+        job.message = "ประกอบ workflow FL2VA (Low VRAM / GGUF)"
+        workflow = workflow_service.build_fl2va_gguf_workflow(
+            prompt=job.prompt, first_frame_filename=first_name, seed=job.seed,
+            duration=getattr(job, "duration_seconds", None) or 5,
+            aspect_ratio=getattr(job, "aspect_ratio", None) or "16:9 (Widescreen)",
+            megapixels=_megapixels_for_resolution(job.resolution),
+            filename_prefix=f"video/H3_Studio_FL2VA_LOW_{job.id[:8]}",
+        )
+        progress_config = _build_fl2va_gguf_progress_config(workflow)
+        for nid, node in workflow.items():
+            if isinstance(node, dict) and node.get("class_type") == "LoadImage":
+                progress_config["node_messages"][nid] = "ComfyUI กำลังโหลดเฟรมตั้งต้น"
+
+    elif workflow_type == WORKFLOW_REF2VA_LOW:
+        reference_images = _select_reference_images(job)
+        job.message = "ประกอบ workflow REF2VA (Low VRAM / GGUF)"
+        workflow = workflow_service.build_ref2va_gguf_workflow(
+            prompt=job.prompt, reference_filenames=reference_images, seed=job.seed,
+            duration=getattr(job, "duration_seconds", None) or 5,
+            aspect_ratio=getattr(job, "aspect_ratio", None) or "16:9 (Widescreen)",
+            megapixels=_megapixels_for_resolution(job.resolution),
+            filename_prefix=f"video/H3_Studio_REF2VA_LOW_{job.id[:8]}",
+        )
+        progress_config = _build_ref2va_gguf_progress_config(workflow)
 
     else:
         raise ValueError(

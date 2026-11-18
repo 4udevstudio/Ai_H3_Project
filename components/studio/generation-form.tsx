@@ -80,6 +80,9 @@ const GENERATION_TYPES = [
   { value: 'REF2VA', label: 'Reference to Video (REF2VA)' },
   { value: 'T2V', label: 'Text to Video (T2V)' },
   { value: 'FL2VA', label: 'First/Last Frame to Video (FL2VA)' },
+  { value: 'REF2VA_LOW', label: 'Reference to Video (REF2VA) — Low VRAM' },
+  { value: 'T2V_LOW', label: 'Text to Video (T2V) — Low VRAM' },
+  { value: 'FL2VA_LOW', label: 'First/Last Frame to Video (FL2VA) — Low VRAM' },
 ] as const
 
 type GenerationType = (typeof GENERATION_TYPES)[number]['value']
@@ -348,8 +351,9 @@ export function GenerationForm() {
     },
   })
 
-  const needsReference = type === 'REF2VA'
-  const isFl2va = type === 'FL2VA'
+  const baseType = type.endsWith('_LOW') ? type.slice(0, -4) : type
+  const needsReference = baseType === 'REF2VA'
+  const isFl2va = baseType === 'FL2VA'
   const hasAnyFrame = Boolean(firstFrame) || Boolean(lastFrame)
 
   // ========================================

@@ -47,6 +47,10 @@ WORKFLOW_FL2VA = "FL2VA"
 # เก็บ alias เก่าไว้ กันประวัติ/payload เดิมที่บันทึกเป็น CHAIN พัง
 WORKFLOW_CHAIN = WORKFLOW_FL2VA
 
+WORKFLOW_T2V_LOW = "T2V_LOW"
+WORKFLOW_FL2VA_LOW = "FL2VA_LOW"
+WORKFLOW_REF2VA_LOW = "REF2VA_LOW"
+
 WORKFLOW_TYPE_ALIASES = {
     "REF2VA": WORKFLOW_REF2VA,
     "REF2VID": WORKFLOW_REF2VA,
@@ -59,6 +63,14 @@ WORKFLOW_TYPE_ALIASES = {
     "CHAIN": WORKFLOW_FL2VA,
     "I2V": WORKFLOW_FL2VA,
     "FIRST_LAST": WORKFLOW_FL2VA,
+    "T2V_LOW": WORKFLOW_T2V_LOW,
+    "T2V_GGUF": WORKFLOW_T2V_LOW,
+    "FL2VA_LOW": WORKFLOW_FL2VA_LOW,
+    "FL2V_LOW": WORKFLOW_FL2VA_LOW,
+    "FL2VA_GGUF": WORKFLOW_FL2VA_LOW,
+    "REF2VA_LOW": WORKFLOW_REF2VA_LOW,
+    "REF2V_LOW": WORKFLOW_REF2VA_LOW,
+    "REF2VA_GGUF": WORKFLOW_REF2VA_LOW,
 }
 
 # ========================================
@@ -1260,3 +1272,129 @@ def build_fl2va_workflow(
         inputs["last_frame"] = [last_id, 0]
 
     return workflow
+
+# ========================================
+# GGUF (Low VRAM) templates & builders
+# ========================================
+import random as _gguf_random
+
+_GGUF_TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent / "workflows"
+
+# --- node ids: T2V GGUF ---
+NODE_GGUF_T2V_PROMPT = "217"
+NODE_GGUF_T2V_SEED = "215"
+NODE_GGUF_T2V_DURATION = "219"
+NODE_GGUF_T2V_RESOLUTION = "115"
+NODE_GGUF_T2V_SAVE = "204"
+
+# --- node ids: FL2VA GGUF ---
+NODE_GGUF_FL2VA_PROMPT = "215"
+NODE_GGUF_FL2VA_FIRST_FRAME = "148"
+NODE_GGUF_FL2VA_SEED = "213"
+NODE_GGUF_FL2VA_DURATION = "217"
+NODE_GGUF_FL2VA_RESOLUTION = "154"
+NODE_GGUF_FL2VA_SAVE = "205"
+
+# --- node ids: REF2VA GGUF ---
+NODE_GGUF_REF2VA_PROMPT = "138"
+NODE_GGUF_REF2VA_NODE = "136"
+NODE_GGUF_REF2VA_REF0 = "149"
+NODE_GGUF_REF2VA_REF1 = "150"
+NODE_GGUF_REF2VA_SEED = "129"
+NODE_GGUF_REF2VA_DURATION = "132"
+NODE_GGUF_REF2VA_RESOLUTION = "115"
+NODE_GGUF_REF2VA_SAVE = "204"
+
+
+def _load_gguf_template(filename: str) -> dict:
+    path = _GGUF_TEMPLATE_DIR / filename
+    if not path.exists():
+        raise WorkflowTemplateError(f"ไม่พบ GGUF template: {path}")
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _gguf_resolve_seed(seed) -> int:
+    try:
+        s = int(seed)
+    except (TypeError, ValueError):
+        s = -1
+    if s < 0:
+        return _gguf_random.randint(0, 2**53 - 1)
+    return s
+
+
+def _gguf_resolve_duration(duration) -> float:
+    try:
+        d = float(duration)
+    except (TypeError, ValueError):
+        d = 5.0
+    return max(5.0, min(30.0, d))
+
+
+def build_t2v_gguf_workflow(
+    prompt, seed=-1, duration=5, aspect_ratio="16:9 (Widescreen)",
+    megapixels=0.5, filename_prefix="video/H3_Studio_T2V_LOW",
+):
+    if not prompt or not prompt.strip():
+        raise WorkflowValidationError("prompt ห้ามว่างเปล่า")
+
+    wf = _load_gguf_template("minimax_h3_t2v_gguf.api.json")
+    wf[NODE_GGUF_T2V_PROMPT]["inputs"]["prompt"] = prompt.strip()
+    wf[NODE_GGUF_T2V_SEED]["inputs"]["noise_seed"] = _gguf_resolve_seed(seed)
+    wf[NODE_GGUF_T2V_DURATION]["inputs"]["value"] = _gguf_resolve_duration(duration)
+    wf[NODE_GGUF_T2V_RESOLUTION]["inputs"]["aspect_ratio"] = aspect_ratio
+    wf[NODE_GGUF_T2V_RESOLUTION]["inputs"]["megapixels"] = megapixels
+    wf[NODE_GGUF_T2V_SAVE]["inputs"]["filename_prefix"] = filename_prefix
+    return wf
+
+
+def build_fl2va_gguf_workflow(
+    prompt, first_frame_filename, seed=-1, duration=5,
+    aspect_ratio="16:9 (Widescreen)", megapixels=0.5,
+    filename_prefix="video/H3_Studio_FL2VA_LOW",
+):
+    if not prompt or not prompt.strip():
+        raise WorkflowValidationError("prompt ห้ามว่างเปล่า")
+    if not first_frame_filename:
+        raise WorkflowValidationError("FL2VA (Low VRAM) ต้องมี first frame")
+
+    wf = _load_gguf_template("minimax_h3_fl2va_gguf.api.json")
+    wf[NODE_GGUF_FL2VA_PROMPT]["inputs"]["prompt"] = prompt.strip()
+    wf[NODE_GGUF_FL2VA_FIRST_FRAME]["inputs"]["image"] = Path(first_frame_filename).name
+    wf[NODE_GGUF_FL2VA_SEED]["inputs"]["noise_seed"] = _gguf_resolve_seed(seed)
+    wf[NODE_GGUF_FL2VA_DURATION]["inputs"]["value"] = _gguf_resolve_duration(duration)
+    wf[NODE_GGUF_FL2VA_RESOLUTION]["inputs"]["aspect_ratio"] = aspect_ratio
+    wf[NODE_GGUF_FL2VA_RESOLUTION]["inputs"]["megapixels"] = megapixels
+    wf[NODE_GGUF_FL2VA_SAVE]["inputs"]["filename_prefix"] = filename_prefix
+    return wf
+
+
+def build_ref2va_gguf_workflow(
+    prompt, reference_filenames, seed=-1, duration=5,
+    aspect_ratio="16:9 (Widescreen)", megapixels=0.5,
+    filename_prefix="video/H3_Studio_REF2VA_LOW",
+):
+    if not prompt or not prompt.strip():
+        raise WorkflowValidationError("prompt ห้ามว่างเปล่า")
+
+    refs = [Path(r).name for r in (reference_filenames or []) if r]
+    if not refs:
+        raise WorkflowValidationError("REF2VA (Low VRAM) ต้องมี reference อย่างน้อย 1 รูป")
+
+    wf = _load_gguf_template("minimax_h3_ref2va_gguf.api.json")
+    wf[NODE_GGUF_REF2VA_PROMPT]["inputs"]["value"] = prompt.strip()
+
+    wf[NODE_GGUF_REF2VA_REF0]["inputs"]["image"] = refs[0]
+    if len(refs) >= 2:
+        wf[NODE_GGUF_REF2VA_REF1]["inputs"]["image"] = refs[1]
+    else:
+        wf[NODE_GGUF_REF2VA_NODE]["inputs"].pop("ref_images.ref_image_1", None)
+        wf.pop(NODE_GGUF_REF2VA_REF1, None)
+
+    wf[NODE_GGUF_REF2VA_SEED]["inputs"]["noise_seed"] = _gguf_resolve_seed(seed)
+    wf[NODE_GGUF_REF2VA_DURATION]["inputs"]["value"] = _gguf_resolve_duration(duration)
+    wf[NODE_GGUF_REF2VA_RESOLUTION]["inputs"]["aspect_ratio"] = aspect_ratio
+    wf[NODE_GGUF_REF2VA_RESOLUTION]["inputs"]["megapixels"] = megapixels
+    wf[NODE_GGUF_REF2VA_SAVE]["inputs"]["filename_prefix"] = filename_prefix
+    return wf

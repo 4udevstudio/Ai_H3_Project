@@ -71,6 +71,9 @@ const SCENE_TYPES = [
   { value: 'T2V', label: 'T2V' },
   { value: 'FL2VA', label: 'FL2VA (ต่อฉาก)' },
   { value: 'REF2VA', label: 'REF2VA (อ้างอิง)' },
+  { value: 'T2V_LOW', label: 'T2V (Low VRAM)' },
+  { value: 'FL2VA_LOW', label: 'FL2VA ต่อฉาก (Low VRAM)' },
+  { value: 'REF2VA_LOW', label: 'REF2VA อ้างอิง (Low VRAM)' },
 ] as const
 
 type SceneType = (typeof SCENE_TYPES)[number]['value']
@@ -266,9 +269,10 @@ function SceneCard(props: SceneCardProps) {
   const slotARef = React.useRef<HTMLInputElement | null>(null)
   const slotBRef = React.useRef<HTMLInputElement | null>(null)
 
-  const isFl2va = scene.type === 'FL2VA'
-  const isRef = scene.type === 'REF2VA'
-  const isT2v = scene.type === 'T2V'
+  const sceneBaseType = scene.type.endsWith('_LOW') ? scene.type.slice(0, -4) : scene.type
+  const isFl2va = sceneBaseType === 'FL2VA'
+  const isRef = sceneBaseType === 'REF2VA'
+  const isT2v = sceneBaseType === 'T2V'
 
   const slotALabel = isFl2va ? 'First frame' : isRef ? 'Reference 1' : ''
   const slotBLabel = isFl2va ? 'Last frame (ไม่บังคับ)' : isRef ? 'Reference 2 (ไม่บังคับ)' : ''
