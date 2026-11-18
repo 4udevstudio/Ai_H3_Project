@@ -1,4 +1,4 @@
-# 🎬 MiniMax H3 Studio
+# 🎬 Ai H3 MiniMax Studio
 
 > สตูดิโอสร้างวิดีโอ AI บนเครื่องคุณเอง — รัน MiniMax H3 ผ่าน ComfyUI พร้อมคิวงาน, คลังมีเดีย, ต่อคลิปต่อเนื่อง, รวมคลิป และผู้ช่วยเขียน prompt ด้วย Gemma VLM
 
@@ -449,9 +449,9 @@ outputs/
 
 **TonLikeIT** — Full Stack Developer & AI Enthusiast
 
-- Facebook: `TonLikeIT`
-- YouTube: `TonLikeIT`
-- GitHub: `tontheonelove`
+- Facebook: [TonLikeIT](https://www.facebook.com/tonlikeit)
+- YouTube: [TonLikeIT](https://www.youtube.com/@tonlikeit)
+- GitHub: [Coding](https://github.com/tontheonelove)
 
 ---
 
