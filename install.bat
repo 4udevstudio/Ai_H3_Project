@@ -3,6 +3,9 @@ setlocal EnableDelayedExpansion
 title Ai-H3-Studio-Generator - Install - By Ton Like IT
 cd /d "%~dp0"
 
+REM ---- เปิด UTF-8 เพื่อแสดงภาษาไทยใน CMD Windows ----
+chcp 65001 >nul 2>nul
+
 echo ========================================
 echo   Ai-H3-Studio-Generator - Installer - By Ton Like IT
 echo ========================================
@@ -29,7 +32,31 @@ if "!LAN_IP!"=="" set "LAN_IP=127.0.0.1"
 echo [INFO] LAN IP เครื่องนี้: !LAN_IP!
 echo.
 
-REM ---- 3) Backend config ----
+REM ---- 3) สร้าง .env จาก example (จำเป็นสำหรับ Prisma v6+) ----
+if not exist ".env" (
+  if exist ".env.example" (
+    copy ".env.example" ".env" >nul
+    echo [INFO] สร้าง .env จาก .env.example แล้ว
+  ) else (
+    echo [ERROR] ไม่พบ .env.example
+    pause
+    exit /b 1
+  )
+)
+
+REM ---- 3.1) สร้าง backend\.env จาก example ----
+if not exist "backend\.env" (
+  if exist "backend\.env.example" (
+    copy "backend\.env.example" "backend\.env" >nul
+    echo [INFO] สร้าง backend\.env จาก backend\.env.example แล้ว
+  ) else (
+    echo [ERROR] ไม่พบ backend\.env.example
+    pause
+    exit /b 1
+  )
+)
+
+REM ---- 4) Backend config ----
 REM ระบบใช้ runtime backend URL (อ่านจาก URL หน้าเว็บอัตโนมัติ)
 REM ดังนั้นไม่ต้องสร้าง .env.local หรือตั้ง NEXT_PUBLIC_BACKEND_URL
 REM ถ้าอยาก lock URL ชัดเจน (เช่น เปิดจาก tablet) ค่อยสร้าง .env.local เอง:
@@ -49,7 +76,7 @@ if not exist "backend\config.json" (
   )
 )
 
-REM ---- 4) Frontend: deps + DB + build ----
+REM ---- 5) Frontend: deps + DB + build ----
 echo [1/4] npm install...
 call npm install
 if errorlevel 1 (
@@ -80,7 +107,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-REM ---- 5) Backend: venv + pip ----
+REM ---- 6) Backend: venv + pip ----
 echo [4/4] python venv + pip install...
 cd backend
 if not exist "venv" (
