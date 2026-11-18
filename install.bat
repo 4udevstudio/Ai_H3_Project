@@ -1,0 +1,122 @@
+@echo off
+setlocal EnableDelayedExpansion
+title MiniMax H3 Studio - Install
+cd /d "%~dp0"
+
+echo ========================================
+echo   MiniMax H3 Studio - Installer
+echo ========================================
+echo.
+
+REM ---- 1) Check prerequisites ----
+where node >nul 2>nul
+if errorlevel 1 (
+  echo [ERROR] ไม่พบ Node.js - ติดตั้งจาก https://nodejs.org ก่อน
+  pause
+  exit /b 1
+)
+where python >nul 2>nul
+if errorlevel 1 (
+  echo [ERROR] ไม่พบ Python - ติดตั้ง Python 3.11 ก่อน
+  pause
+  exit /b 1
+)
+
+REM ---- 2) Detect LAN IP (ไว้แสดงเฉยๆ ตอนรัน) ----
+set "LAN_IP="
+for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "try { (Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | Sort-Object RouteMetric | Select-Object -First 1 | ForEach-Object { (Get-NetIPAddress -InterfaceIndex $_.ifIndex -AddressFamily IPv4).IPAddress }) } catch { '' }"`) do set "LAN_IP=%%i"
+if "!LAN_IP!"=="" set "LAN_IP=127.0.0.1"
+echo [INFO] LAN IP เครื่องนี้: !LAN_IP!
+echo.
+
+REM ---- 3) Backend config ----
+REM ระบบใช้ runtime backend URL (อ่านจาก URL หน้าเว็บอัตโนมัติ)
+REM ดังนั้นไม่ต้องสร้าง .env.local หรือตั้ง NEXT_PUBLIC_BACKEND_URL
+REM ถ้าอยาก lock URL ชัดเจน (เช่น เปิดจาก tablet) ค่อยสร้าง .env.local เอง:
+REM   echo NEXT_PUBLIC_BACKEND_URL=http://!LAN_IP!:8000 > ".env.local"
+REM   แล้วรัน npm run build ใหม่
+
+if not exist "backend\config.json" (
+  if exist "backend\config.example.json" (
+    copy "backend\config.example.json" "backend\config.json" >nul
+    echo [INFO] สร้าง backend\config.json จาก example แล้ว
+    echo [!] แก้ comfyui_root / comfyui_input_dir ใน backend\config.json ให้ตรงกับเครื่องคุณ
+    echo [!] ถ้าใช้ RunPod Pod ตั้งค่าผ่านหน้า Settings ได้ภายหลัง
+  ) else (
+    echo [ERROR] ไม่พบ backend\config.example.json
+    pause
+    exit /b 1
+  )
+)
+
+REM ---- 4) Frontend: deps + DB + build ----
+echo [1/4] npm install...
+call npm install
+if errorlevel 1 (
+  echo [ERROR] npm install ล้มเหลว
+  pause
+  exit /b 1
+)
+
+echo [2/4] prisma generate + db push...
+call npx prisma generate
+if errorlevel 1 (
+  echo [ERROR] prisma generate ล้มเหลว
+  pause
+  exit /b 1
+)
+call npx prisma db push
+if errorlevel 1 (
+  echo [ERROR] prisma db push ล้มเหลว
+  pause
+  exit /b 1
+)
+
+echo [3/4] npm run build...
+call npm run build
+if errorlevel 1 (
+  echo [ERROR] npm run build ล้มเหลว
+  pause
+  exit /b 1
+)
+
+REM ---- 5) Backend: venv + pip ----
+echo [4/4] python venv + pip install...
+cd backend
+if not exist "venv" (
+  echo [INFO] สร้าง python venv...
+  python -m venv venv
+  if errorlevel 1 (
+    echo [ERROR] สร้าง venv ไม่สำเร็จ
+    cd ..
+    pause
+    exit /b 1
+  )
+)
+call venv\Scripts\activate.bat
+echo [INFO] อัปเกรด pip...
+python -m pip install --upgrade pip --quiet
+pip install -r requirements.txt
+if errorlevel 1 (
+  echo [ERROR] pip install ล้มเหลว
+  cd ..
+  pause
+  exit /b 1
+)
+cd ..
+
+echo.
+echo ========================================
+echo   ติดตั้งเสร็จสมบูรณ์!
+echo ----------------------------------------
+echo   ขั้นตอนถัดไป:
+echo   1) แก้ backend\config.json
+echo      - comfyui_root = path โฟลเดอร์ ComfyUI
+echo      - comfyui_input_dir = path input folder
+echo   2) เปิด ComfyUI ไว้ที่พอร์ต 8188
+echo   3) รัน start.bat
+echo ----------------------------------------
+echo   ใช้ LAN (เพื่อนในวงเดียวกัน):
+echo   เปิด http://!LAN_IP!:3000
+echo ========================================
+pause

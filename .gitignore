@@ -1,6 +1,9 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# ========================================
+# Dependencies
+# ========================================
+node_modules/
 /node_modules
 /.pnp
 .pnp.*
@@ -10,32 +13,214 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
+# ========================================
+# Testing
+# ========================================
 /coverage
 
-# next.js
+# ========================================
+# Next.js
+# ========================================
 /.next/
 /out/
 
-# production
+# ========================================
+# Production build
+# ========================================
 /build
 
-# misc
+# ========================================
+# OS misc
+# ========================================
 .DS_Store
-*.pem
+Thumbs.db
+desktop.ini
+*~
 
-# debug
+# ========================================
+# Debug logs
+# ========================================
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
-# env files (can opt-in for committing if needed)
+# ========================================
+# Env files — ignore ทั้งหมด แล้วเปิด例外เฉพาะ example
+# ========================================
 .env*
+!.env.example
+!backend/.env.example
 
-# vercel
+# ========================================
+# Secrets / keys — ห้ามขึ้น repo เด็ดขาด
+# ========================================
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.json
+*credentials*.json
+
+# ========================================
+# Vercel
+# ========================================
 .vercel
 
-# typescript
+# ========================================
+# TypeScript
+# ========================================
 *.tsbuildinfo
 next-env.d.ts
+
+# ========================================
+# Prisma generated client
+# ========================================
+/lib/generated/prisma
+
+# ========================================
+# DATABASE (SQLite) — สำคัญที่สุด
+# มี prompt / โปรเจค / ประวัติ / ข้อมูลลูกค้าทั้งหมด
+# ========================================
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+/prisma/dev.db
+/prisma/*.db
+/dev.db
+
+# ========================================
+# Python backend
+# ========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+develop-eggs/
+dist/
+downloads/
+sdist/
+wheels/
+share/python-wheels/
+*.manifest
+*.spec
+
+# ========================================
+# Virtual environments
+# ========================================
+venv/
+.venv/
+env/
+ENV/
+backend/venv/
+backend/.venv/
+backend/env/
+backend/ENV/
+backend/venv_clean/
+
+# ========================================
+# Generated media / outputs (วิดีโอ, thumbnail, เฟรม)
+# ใช้ outputs/ แบบไม่มี leading slash = จับทุกชั้นโฟลเดอร์
+# ========================================
+outputs/
+/outputs/
+/backend/outputs/
+
+# ========================================
+# Local uploads / temp
+# ========================================
+/uploads/
+/backend/uploads/
+/backend/temp/
+/backend/tmp/
+/tmp/
+/temp/
+*.tmp
+*.bak
+*.concat.txt
+
+# ========================================
+# Local model files / weights
+# ========================================
+/models/
+/backend/models/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.onnx
+
+# ========================================
+# Caches
+# ========================================
+/cache/
+/backend/cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.turbo/
+.swc/
+
+# ========================================
+# Local config — มี path ส่วนตัว / URL / token
+# ========================================
+/backend/config.json
+!backend/config.example.json
+
+# ========================================
+# Local ffmpeg binaries
+# ========================================
+/bin/ffmpeg.exe
+/bin/ffprobe.exe
+/backend/bin/ffmpeg.exe
+/backend/bin/ffprobe.exe
+
+# ========================================
+# สคริปต์ตรวจชั่วคราว (probe_upload.py / probe_vlm.py)
+# ========================================
+backend/probe_*.py
+
+# ========================================
+# Media artifacts — กันเผลอวางไฟล์ทดสอบไว้ใน repo
+# (ยกเว้น asset ของหน้าเว็บใน public/)
+# ========================================
+*.mp4
+*.mov
+*.webm
+*.avi
+*.mkv
+*.wav
+*.mp3
+*.m4a
+!public/**
+
+# รูปที่วางหลงไว้ที่รากโปรเจค (ไม่แตะ asset ในโฟลเดอร์ย่อย)
+/*.jpg
+/*.jpeg
+/*.png
+/*.webp
+/backend/*.jpg
+/backend/*.jpeg
+/backend/*.png
+
+# ========================================
+# Editor / IDE
+# ใช้ .vscode/* (ไม่ใช่ .vscode/) เพื่อให้บรรทัด ! ทำงาน
+# ========================================
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo

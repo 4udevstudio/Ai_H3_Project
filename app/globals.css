@@ -1,26 +1,473 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  /* ========================================
+     FONTS
+     ========================================
+     - --font-sans  = body / UI / ข้อความไทย
+     - --font-mono  = prompt / seed / step / technical
+     - --font-display = heading / brand / card title
+     - --font-heading = เผื่อ component/shadcn บางตัวอ้างถึง
+  */
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-display: var(--font-chakra), var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-display);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ========================================
+   DEFAULT (fallback) — คงของเดิมไว้กันพลาด
+   ======================================== */
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* ========================================
+   THEME 1: MIDNIGHT STUDIO 🌙
+   กรมท่าเข้ม + ทอง — ดูมืออาชีพ (ธีมเริ่มต้น)
+   ======================================== */
+:root[data-theme='midnight'] {
+  --background: oklch(0.16 0.03 262);
+  --foreground: oklch(0.93 0.012 260);
+  --card: oklch(0.20 0.035 262);
+  --card-foreground: oklch(0.93 0.012 260);
+  --popover: oklch(0.20 0.035 262);
+  --popover-foreground: oklch(0.93 0.012 260);
+  --primary: oklch(0.82 0.14 88);
+  --primary-foreground: oklch(0.18 0.03 262);
+  --secondary: oklch(0.26 0.04 262);
+  --secondary-foreground: oklch(0.93 0.012 260);
+  --muted: oklch(0.24 0.035 262);
+  --muted-foreground: oklch(0.72 0.02 260);
+  --accent: oklch(0.28 0.045 262);
+  --accent-foreground: oklch(0.95 0.012 260);
+  --destructive: oklch(0.64 0.2 25);
+  --border: oklch(0.32 0.04 262);
+  --input: oklch(0.32 0.04 262);
+  --ring: oklch(0.82 0.14 88);
+  --chart-1: oklch(0.82 0.14 88);
+  --chart-2: oklch(0.65 0.12 262);
+  --chart-3: oklch(0.55 0.1 200);
+  --chart-4: oklch(0.45 0.08 262);
+  --chart-5: oklch(0.35 0.06 262);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.18 0.03 262);
+  --sidebar-foreground: oklch(0.93 0.012 260);
+  --sidebar-primary: oklch(0.82 0.14 88);
+  --sidebar-primary-foreground: oklch(0.18 0.03 262);
+  --sidebar-accent: oklch(0.26 0.04 262);
+  --sidebar-accent-foreground: oklch(0.93 0.012 260);
+  --sidebar-border: oklch(0.30 0.04 262);
+  --sidebar-ring: oklch(0.82 0.14 88);
+}
+
+/* ========================================
+   THEME 2: ARCTIC LIGHT ❄️
+   ขาวสะอาด + ฟ้าเทา — โฟกัสงาน
+   ======================================== */
+:root[data-theme='arctic'] {
+  --background: oklch(0.995 0.002 250);
+  --foreground: oklch(0.21 0.02 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.02 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.02 250);
+  --primary: oklch(0.55 0.17 255);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.965 0.006 250);
+  --secondary-foreground: oklch(0.21 0.02 250);
+  --muted: oklch(0.965 0.006 250);
+  --muted-foreground: oklch(0.50 0.02 250);
+  --accent: oklch(0.955 0.012 250);
+  --accent-foreground: oklch(0.21 0.02 250);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.915 0.006 250);
+  --input: oklch(0.915 0.006 250);
+  --ring: oklch(0.55 0.17 255);
+  --chart-1: oklch(0.55 0.17 255);
+  --chart-2: oklch(0.65 0.12 220);
+  --chart-3: oklch(0.60 0.10 190);
+  --chart-4: oklch(0.45 0.08 255);
+  --chart-5: oklch(0.35 0.06 255);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0.004 250);
+  --sidebar-foreground: oklch(0.21 0.02 250);
+  --sidebar-primary: oklch(0.55 0.17 255);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.96 0.008 250);
+  --sidebar-accent-foreground: oklch(0.21 0.02 250);
+  --sidebar-border: oklch(0.915 0.006 250);
+  --sidebar-ring: oklch(0.55 0.17 255);
+}
+
+/* ========================================
+   THEME 3: CYBERPUNK NEON ⚡
+   ม่วงดำ + นีออนชมพู/cyan — จัดจ้าน
+   (ขอบมนเล็กกว่าธีมอื่นเพื่อให้ดูคม)
+   ======================================== */
+:root[data-theme='cyberpunk'] {
+  --background: oklch(0.15 0.035 310);
+  --foreground: oklch(0.93 0.03 205);
+  --card: oklch(0.19 0.04 310);
+  --card-foreground: oklch(0.93 0.03 205);
+  --popover: oklch(0.19 0.04 310);
+  --popover-foreground: oklch(0.93 0.03 205);
+  --primary: oklch(0.68 0.26 350);
+  --primary-foreground: oklch(0.98 0.02 350);
+  --secondary: oklch(0.25 0.05 310);
+  --secondary-foreground: oklch(0.93 0.03 205);
+  --muted: oklch(0.23 0.045 310);
+  --muted-foreground: oklch(0.76 0.06 205);
+  --accent: oklch(0.28 0.06 310);
+  --accent-foreground: oklch(0.95 0.03 205);
+  --destructive: oklch(0.64 0.24 25);
+  --border: oklch(0.33 0.06 310);
+  --input: oklch(0.33 0.06 310);
+  --ring: oklch(0.82 0.14 205);
+  --chart-1: oklch(0.68 0.26 350);
+  --chart-2: oklch(0.82 0.14 205);
+  --chart-3: oklch(0.60 0.2 300);
+  --chart-4: oklch(0.50 0.15 310);
+  --chart-5: oklch(0.40 0.1 310);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.17 0.04 310);
+  --sidebar-foreground: oklch(0.93 0.03 205);
+  --sidebar-primary: oklch(0.68 0.26 350);
+  --sidebar-primary-foreground: oklch(0.98 0.02 350);
+  --sidebar-accent: oklch(0.25 0.05 310);
+  --sidebar-accent-foreground: oklch(0.93 0.03 205);
+  --sidebar-border: oklch(0.30 0.06 310);
+  --sidebar-ring: oklch(0.82 0.14 205);
+}
+
+/* ========================================
+   THEME 4: SUNSET CREATIVE 🌅
+   ครีม + ส้มอบอุ่น — sángสรรค์
+   (ขอบมนนุ่มกว่าธีมอื่น)
+   ======================================== */
+:root[data-theme='sunset'] {
+  --background: oklch(0.975 0.018 85);
+  --foreground: oklch(0.26 0.05 55);
+  --card: oklch(0.99 0.01 85);
+  --card-foreground: oklch(0.26 0.05 55);
+  --popover: oklch(0.99 0.01 85);
+  --popover-foreground: oklch(0.26 0.05 55);
+  --primary: oklch(0.68 0.185 45);
+  --primary-foreground: oklch(0.985 0.008 85);
+  --secondary: oklch(0.95 0.03 85);
+  --secondary-foreground: oklch(0.26 0.05 55);
+  --muted: oklch(0.955 0.025 85);
+  --muted-foreground: oklch(0.50 0.06 55);
+  --accent: oklch(0.94 0.04 80);
+  --accent-foreground: oklch(0.26 0.05 55);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.90 0.03 85);
+  --input: oklch(0.90 0.03 85);
+  --ring: oklch(0.68 0.185 45);
+  --chart-1: oklch(0.68 0.185 45);
+  --chart-2: oklch(0.75 0.15 70);
+  --chart-3: oklch(0.60 0.14 35);
+  --chart-4: oklch(0.50 0.12 45);
+  --chart-5: oklch(0.40 0.1 45);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.985 0.012 85);
+  --sidebar-foreground: oklch(0.26 0.05 55);
+  --sidebar-primary: oklch(0.68 0.185 45);
+  --sidebar-primary-foreground: oklch(0.985 0.008 85);
+  --sidebar-accent: oklch(0.95 0.03 85);
+  --sidebar-accent-foreground: oklch(0.26 0.05 55);
+  --sidebar-border: oklch(0.90 0.03 85);
+  --sidebar-ring: oklch(0.68 0.185 45);
+}
+
+/* ========================================
+   THEME 5: FOREST ZEN 🌲
+   เขียวเซจ + โทนดิน — สงบสบายตา
+   ======================================== */
+:root[data-theme='forest'] {
+  --background: oklch(0.975 0.012 155);
+  --foreground: oklch(0.23 0.02 165);
+  --card: oklch(0.99 0.006 155);
+  --card-foreground: oklch(0.23 0.02 165);
+  --popover: oklch(0.99 0.006 155);
+  --popover-foreground: oklch(0.23 0.02 165);
+  --primary: oklch(0.55 0.13 155);
+  --primary-foreground: oklch(0.985 0.006 155);
+  --secondary: oklch(0.95 0.015 155);
+  --secondary-foreground: oklch(0.23 0.02 165);
+  --muted: oklch(0.955 0.012 155);
+  --muted-foreground: oklch(0.50 0.03 165);
+  --accent: oklch(0.94 0.02 155);
+  --accent-foreground: oklch(0.23 0.02 165);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.90 0.015 155);
+  --input: oklch(0.90 0.015 155);
+  --ring: oklch(0.55 0.13 155);
+  --chart-1: oklch(0.55 0.13 155);
+  --chart-2: oklch(0.65 0.10 120);
+  --chart-3: oklch(0.60 0.08 95);
+  --chart-4: oklch(0.45 0.08 155);
+  --chart-5: oklch(0.35 0.06 155);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0.008 155);
+  --sidebar-foreground: oklch(0.23 0.02 165);
+  --sidebar-primary: oklch(0.55 0.13 155);
+  --sidebar-primary-foreground: oklch(0.985 0.006 155);
+  --sidebar-accent: oklch(0.95 0.015 155);
+  --sidebar-accent-foreground: oklch(0.23 0.02 165);
+  --sidebar-border: oklch(0.90 0.015 155);
+  --sidebar-ring: oklch(0.55 0.13 155);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    /* ช่วยให้อักษรไทยไม่แน่นเกินไป */
+    line-height: 1.625;
+  }
+
+  /* Heading ใช้ display font อัตโนมัติ */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display tracking-tight;
+    font-weight: 600;
+  }
+
+  /* ข้อความ mono ให้ตัวเลขเรียงสวย */
+  code,
+  pre,
+  kbd,
+  samp,
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ป้องกัน input/textarea กิน font ต่างหาก */
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ========================================
+   FIX: Layering สำหรับ Theme dropdown / Popover / Toast
+   ========================================
+   Description:
+     - แก้ปัญหา layout/card header ทับ theme dropdown
+     - แยกชัน z-index ให้ชัด:
+       content/card = 0
+       sidebar/header/topbar = 60
+       dropdown/popover/menu = 1000
+       toast = 9999
+   Note:
+     ใช้ !important เพราะปัญหานี้มักเกิดจาก component หลายชั้นทับกัน
+*/
+
+@layer utilities {
+  /* ========================================
+     1) ลดชันของเนื้อหาหน้า/Cards
+     ======================================== */
+  main,
+  [data-slot="card"],
+  [data-slot="card-header"],
+  [data-slot="card-content"],
+  [data-slot="card-footer"],
+  .card,
+  .card-header,
+  .card-content,
+  .card-footer {
+    position: relative;
+    z-index: 0 !important;
+  }
+
+  /* ========================================
+     2) ให้ sidebar/header/topbar อยู่เหนือเนื้อหา
+        แต่ยังไม่เกิน dropdown
+     ======================================== */
+  aside,
+  nav,
+  header,
+  .sidebar,
+  .topbar,
+  .app-header,
+  .app-shell-header,
+  .page-header {
+    position: relative;
+    z-index: 60 !important;
+  }
+
+  /* ========================================
+     3) Dropdown / Popover / Menu / Select
+        ต้องอยู่เหนือดทุกอย่างยกเว้น toast
+     ======================================== */
+  [data-radix-popper-content-wrapper],
+  [data-radix-menu-content],
+  [data-radix-dropdown-menu-content],
+  [data-radix-popover-content],
+  [data-radix-select-content],
+  [data-slot="dropdown-menu-content"],
+  [data-slot="popover-content"],
+  [data-slot="select-content"],
+  [data-slot="combobox-content"],
+  [role="menu"],
+  [role="listbox"],
+  [role="dialog"],
+  .theme-dropdown,
+  [data-theme-dropdown],
+  [data-theme-picker],
+  [data-theme-switcher] {
+    z-index: 1000 !important;
+  }
+
+  /* ========================================
+     4) Sonner toast ต้องอยู่หน้าสุดเสมอ
+     ======================================== */
+  [data-sonner-toaster],
+  [data-sonner-toast] {
+    z-index: 9999 !important;
+  }
+
+  /* ========================================
+     5) กัน backdrop-blur ทับ popup
+        โดยไม่ไปบังคับทุกตัวเหมือนครั้งก่อน
+     ======================================== */
+  [data-slot="card-header"].backdrop-blur,
+  [data-slot="card-header"][class*="backdrop-blur"],
+  .card-header.backdrop-blur,
+  .card-header[class*="backdrop-blur"] {
+    z-index: 0 !important;
+  }
+
+  header[class*="backdrop-blur"],
+  .topbar[class*="backdrop-blur"],
+  .app-header[class*="backdrop-blur"],
+  .page-header[class*="backdrop-blur"] {
+    z-index: 60 !important;
+  }
 }

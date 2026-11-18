@@ -1,0 +1,27 @@
+"""
+========================================
+LLM Service (ฉบับร่าง)
+========================================
+Description:
+    คลาสจัดการโมเดล Gemma (GGUF ผ่าน llama-cpp-python)
+    ฉบับนี้เป็น stub เก็บสถานะเท่านั้น
+    ฉบับเต็ม (load / unload / generate) จะทำในขั้นถัดไป
+"""
+
+
+class LLMService:
+    """จัดการการโหลด/ปล่อยโมเดล LLM และการสร้าง prompt"""
+
+    def __init__(self) -> None:
+        # สถานะว่าโมเดลถูกโหลดเข้า VRAM อยู่หรือไม่
+        self.loaded = False
+        # ชื่อโมเดลที่โหลดอยู่
+        self.model_name: str | None = None
+
+    def status(self) -> dict:
+        """คืนสถานะปัจจุบันของ LLM (ใช้กับ API /api/llm/status)"""
+        return {"loaded": self.loaded, "model": self.model_name}
+
+
+# instance หลักที่ใช้ร่วมกันทั้ง backend (singleton)
+llm_service = LLMService()

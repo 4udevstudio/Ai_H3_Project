@@ -1,0 +1,190 @@
+// ========================================
+// Prisma Schema - MiniMax H3 Studio
+// Database: SQLite (Development)
+// ========================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ========================================
+// PROJECTS - กลุ่มของ videos/projects
+// ========================================
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  theme       String   @default("midnight")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  generations Generation[]
+  
+  @@index([createdAt])
+}
+
+// ========================================
+// GENERATIONS - ประวัติการ generate ทั้งหมด
+// ========================================
+model Generation {
+  id               String    @id @default(cuid())
+  projectId        String?
+  project          Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // Generation type
+  type             String    @default("TEXT2VID") // TEXT2VID, IMG2VID, REF2VID, FL2VA
+  
+  // Prompt information
+  prompt           String
+  negativePrompt   String?
+  seed             Int       @default(-1)
+  steps            Int       @default(6)
+  resolution       String    @default("768p")
+  
+  // Pika H3 Flex specific
+  taskAdapter      String?   // "fl2va", "ref2va"
+  loraUsed         String?   // "pika-h3-flex", "turbo"
+
+  lastFramePath    String?
+  
+  // AI Enhancement
+  useAIEnhancement Boolean   @default(false)
+  
+  // Results
+  videoPath        String?
+  audioPath        String?
+  thumbnailPath    String?
+  duration         Float?
+  
+  // Status
+  status           String    @default("PENDING") // PENDING, RUNNING, DONE, FAILED, CANCELLED
+  error            String?
+  
+  // Metadata
+  generationTime   Float?
+  vramUsed         Float?
+  
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+  
+  references       Reference[]
+  enhancement      AIPromptEnhancement?
+  
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ========================================
+// REFERENCES - รูปภาพ/วิดีโออ้างอิง
+// ========================================
+model Reference {
+  id            String     @id @default(cuid())
+  generationId  String
+  generation    Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  
+  type          String     // IMAGE, VIDEO, AUDIO
+  path          String
+  order         Int
+  metadata      String?    // JSON string สำหรับ metadata เพิ่มเติม
+  
+  createdAt     DateTime   @default(now())
+  
+  @@index([generationId])
+  @@index([type])
+}
+
+// ========================================
+// ASSETS - คลังไฟล์ (รูปภาพ, วิดีโอ, เสียง)
+// ========================================
+model Asset {
+  id        String   @id @default(cuid())
+  name      String
+  path      String
+  type      String   // IMAGE, VIDEO, AUDIO, MODEL
+  size      Int
+  metadata  String?  // JSON string
+  
+  createdAt DateTime @default(now())
+  
+  @@index([type])
+  @@unique([path])
+}
+
+// ========================================
+// AI PROMPT ENHANCEMENT - ประวัติการใช้ LLM
+// ========================================
+model AIPromptEnhancement {
+  id               String     @id @default(cuid())
+  generationId     String?    @unique
+  generation       Generation? @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  
+  // Input
+  referenceImages  String     // JSON array of image paths
+  basePrompt       String
+  customPrompt     String?
+  
+  // Output
+  enhancedPrompt   String
+  fullPrompt       String
+  
+  // LLM Info
+  modelUsed        String     @default("gemma-4b-it")
+  tokensUsed       Int?
+  responseTime     Float?
+  
+  createdAt        DateTime   @default(now())
+}
+
+// ========================================
+// SETTINGS - ตั้งค่าต่างๆ ของระบบ
+// ========================================
+model Setting {
+  key       String   @id
+  value     String   // JSON string
+  category  String?  // "general", "model", "llm", "ui"
+  
+  updatedAt DateTime @updatedAt
+}
+
+// ========================================
+// PROMPT TEMPLATES - เก็บ prompts ที่ใช้บ่อย
+// ========================================
+model PromptTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  template    String
+  category    String   @default("general") // "general", "cinematic", "product", "motion"
+  isFavorite  Boolean  @default(false)
+  usageCount  Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([category])
+  @@index([isFavorite])
+}
+
+// ========================================
+// LLM PROMPT TEMPLATES - system prompts สำหรับ LLM
+// ========================================
+model LLMPromptTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  template    String
+  category    String   @default("video") // "video", "style", "motion"
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([category])
+  @@index([isActive])
+}
