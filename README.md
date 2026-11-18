@@ -74,6 +74,8 @@
 | `MiniMax-H3-FL2VA-Pruned-Q3_K_M.gguf` | `models/unet/` | T2V + FL2V (Low VRAM) |
 | `MiniMax-H3-Ref2VA-Pruned-Q3_K_M.gguf` | `models/unet/` | REF2V (Low VRAM) |
 | `qwen3vl-32B-MiniMax-H3-Q4_K_M.gguf` | `models/text_encoders/` | CLIP (Low VRAM) |
+| `relayvsr_x2_lightx2v_int8_convrot.safetensors` | `models/diffusion_models/` | UpScale Model |
+| `relayvsr_flash_vae_x2_fp32.safetensors` | `models/vae` | UpScale Model |
 
 ### 1.4 พอร์ตที่ใช้
 
