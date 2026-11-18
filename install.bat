@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableDelayedExpansion
-title MiniMax H3 Studio - Install
+title Ai-H3-Studio-Generator - Install - By Ton Like IT
 cd /d "%~dp0"
 
 echo ========================================
-echo   MiniMax H3 Studio - Installer
+echo   Ai-H3-Studio-Generator - Installer - By Ton Like IT
 echo ========================================
 echo.
 
