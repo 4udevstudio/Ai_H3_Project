@@ -19,6 +19,7 @@ import {
   Link2,
   Loader2,
   Merge,
+  Music,
   Play,
   Sparkles,
   Trash2,
@@ -32,6 +33,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { PromptEnhanceDialog } from '@/components/studio/prompt-enhance-dialog'
+import { DropZone } from '@/components/ui/drop-zone'
 import {
   concatVideos,
   createGeneration,
@@ -46,6 +48,8 @@ import {
   loadDraft,
   makeEmptyScene,
   saveDraft,
+  MAX_SCENE_REF_AUDIOS,
+  MAX_SCENE_REF_IMAGES,
   type SceneDraft,
 } from '@/lib/shortfilm-draft'
 import { cn } from '@/lib/utils'
@@ -54,16 +58,23 @@ import { cn } from '@/lib/utils'
 // Constants
 // ========================================
 
-const RESOLUTIONS = ['0.1 MP', '0.25 MP', '0.35 MP', '0.5 MP', '0.75 MP', '1.0 MP']
+const RESOLUTIONS = [
+  { value: '0.1 MP', label: '0.1 MP (เร็วมาก / เบามาก)' },
+  { value: '0.25 MP', label: '0.25 MP (เร็ว / เบา)' },
+  { value: '0.35 MP', label: '0.35 MP (ประมาณ 480p)' },
+  { value: '0.5 MP', label: '0.5 MP (แนะนำเริ่มต้น)' },
+  { value: '0.75 MP', label: '0.75 MP (ชัดขึ้น)' },
+  { value: '1.0 MP', label: '1.0 MP (ประมาณ 768p)' },
+]
 const ASPECT_RATIOS = [
-  '16:9 (Widescreen)',
-  '9:16 (Portrait Widescreen)',
-  '1:1 (Square)',
-  '2:3 (Portrait Photo)',
-  '3:2 (Photo)',
-  '3:4 (Portrait Standard)',
-  '4:3 (Standard)',
-  '21:9 (Ultrawide)',
+  { value: '16:9 (Widescreen)', label: '16:9 แนวนอน' },
+  { value: '9:16 (Portrait Widescreen)', label: '9:16 แนวตั้ง' },
+  { value: '1:1 (Square)', label: '1:1 จตุรัส' },
+  { value: '2:3 (Portrait Photo)', label: '2:3 แนวตั้ง (Photo)' },
+  { value: '3:2 (Photo)', label: '3:2 แนวนอน (Photo)' },
+  { value: '3:4 (Portrait Standard)', label: '3:4 แนวตั้ง (Standard)' },
+  { value: '4:3 (Standard)', label: '4:3 แนวนอน (Standard)' },
+  { value: '21:9 (Ultrawide)', label: '21:9 จอกว้างพิเศษ' },
 ]
 const DURATIONS = [5, 8, 10, 12, 15]
 
@@ -90,6 +101,13 @@ interface SlotState {
   previewUrl: string
 }
 
+interface AudioState {
+  name: string
+  originalName: string
+  previewUrl: string
+  durationSec?: number
+}
+
 interface SceneState {
   type: SceneType
   prompt: string
@@ -99,7 +117,13 @@ interface SceneState {
   aspect: string
   slotA: SlotState | null
   slotB: SlotState | null
+  refImages: SlotState[]
+  audioRefs: AudioState[]
   jobId: string | null
+}
+
+function sceneBaseType(type: string): string {
+  return type.endsWith('_LOW') ? type.slice(0, -4) : type
 }
 
 // ========================================
@@ -120,6 +144,17 @@ function draftToState(d: SceneDraft): SceneState {
     slotB: d.slotB
       ? { name: d.slotB.name, framePath: d.slotB.framePath, previewUrl: d.slotB.framePath ? getFrameUrl(d.slotB.framePath) ?? '' : '' }
       : null,
+    refImages: (d.refImages ?? []).map((r) => ({
+      name: r.name,
+      framePath: r.framePath,
+      previewUrl: r.framePath ? getFrameUrl(r.framePath) ?? '' : '',
+    })),
+    audioRefs: (d.audioRefs ?? []).map((a) => ({
+      name: a.name,
+      originalName: a.originalName ?? a.name,
+      previewUrl: '',
+      durationSec: a.durationSec,
+    })),
     jobId: d.jobId,
   }
 }
@@ -134,6 +169,12 @@ function stateToDraft(s: SceneState): SceneDraft {
     aspect: s.aspect,
     slotA: s.slotA ? { name: s.slotA.name, framePath: s.slotA.framePath } : null,
     slotB: s.slotB ? { name: s.slotB.name, framePath: s.slotB.framePath } : null,
+    refImages: s.refImages.map((r) => ({ name: r.name, framePath: r.framePath })),
+    audioRefs: s.audioRefs.map((a) => ({
+      name: a.name,
+      originalName: a.originalName,
+      durationSec: a.durationSec,
+    })),
     jobId: s.jobId,
   }
 }
@@ -250,10 +291,14 @@ interface SceneCardProps {
   submitting: boolean
   extracting: boolean
   canPullPrev: boolean
-  uploadingSlot: 'A' | 'B' | null
+  uploadingSlot: 'A' | 'B' | 'REF' | 'AUDIO' | null
   onUpdate: (patch: Partial<SceneState>) => void
   onPickFile: (slot: 'A' | 'B', file: File) => void
   onClearSlot: (slot: 'A' | 'B') => void
+  onPickRefImages: (files: File[]) => void
+  onRemoveRefImage: (index: number) => void
+  onPickAudio: (files: File[]) => void
+  onRemoveAudio: (index: number) => void
   onPullPrev: () => void
   onSubmit: () => void
   onClearScene: () => void
@@ -263,19 +308,22 @@ interface SceneCardProps {
 function SceneCard(props: SceneCardProps) {
   const {
     index, scene, job, submitting, extracting, canPullPrev, uploadingSlot,
-    onUpdate, onPickFile, onClearSlot, onPullPrev, onSubmit, onClearScene, onEnhance,
+    onUpdate, onPickFile, onClearSlot, onPickRefImages, onRemoveRefImage,
+    onPickAudio, onRemoveAudio, onPullPrev, onSubmit, onClearScene, onEnhance,
   } = props
 
   const slotARef = React.useRef<HTMLInputElement | null>(null)
   const slotBRef = React.useRef<HTMLInputElement | null>(null)
+  const refImagesInputRef = React.useRef<HTMLInputElement | null>(null)
+  const audioInputRef = React.useRef<HTMLInputElement | null>(null)
 
-  const sceneBaseType = scene.type.endsWith('_LOW') ? scene.type.slice(0, -4) : scene.type
-  const isFl2va = sceneBaseType === 'FL2VA'
-  const isRef = sceneBaseType === 'REF2VA'
-  const isT2v = sceneBaseType === 'T2V'
+  const baseType = sceneBaseType(scene.type)
+  const isFl2va = baseType === 'FL2VA'
+  const isRef = baseType === 'REF2VA'
+  const isT2v = baseType === 'T2V'
 
-  const slotALabel = isFl2va ? 'First frame' : isRef ? 'Reference 1' : ''
-  const slotBLabel = isFl2va ? 'Last frame (ไม่บังคับ)' : isRef ? 'Reference 2 (ไม่บังคับ)' : ''
+  const slotALabel = 'First frame'
+  const slotBLabel = 'Last frame (ไม่บังคับ)'
 
   return (
     <Card className="shadow-sm">
@@ -356,12 +404,15 @@ function SceneCard(props: SceneCardProps) {
           />
         </div>
 
-        {/* image slots */}
-        {isT2v ? (
+        {/* T2V: ไม่ต้องใช้รูป */}
+        {isT2v && (
           <p className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2 text-center text-[10px] text-muted-foreground">
             T2V ไม่ต้องใช้รูป — พิมพ์ prompt อย่างเดียว
           </p>
-        ) : (
+        )}
+
+        {/* FL2VA: first / last frame (node รับได้ 2 ช่อง) */}
+        {isFl2va && (
           <div className="grid grid-cols-2 gap-2">
             <SceneSlot
               label={slotALabel}
@@ -371,17 +422,200 @@ function SceneCard(props: SceneCardProps) {
               onClear={() => onClearSlot('A')}
               busy={uploadingSlot === 'A'}
             />
-            {isFl2va || isRef ? (
-              <SceneSlot
-                label={slotBLabel}
-                value={scene.slotB}
-                inputRef={slotBRef}
-                onFile={(f) => onPickFile('B', f)}
-                onClear={() => onClearSlot('B')}
-                busy={uploadingSlot === 'B'}
+            <SceneSlot
+              label={slotBLabel}
+              value={scene.slotB}
+              inputRef={slotBRef}
+              onFile={(f) => onPickFile('B', f)}
+              onClear={() => onClearSlot('B')}
+              busy={uploadingSlot === 'B'}
+            />
+          </div>
+        )}
+
+        {/* REF2VA: รูปอ้างอิงสูงสุด 9 */}
+        {isRef && (
+          <div className="grid gap-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold text-muted-foreground">
+                Reference images ({scene.refImages.length}/{MAX_SCENE_REF_IMAGES})
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-[10px]"
+                onClick={() => refImagesInputRef.current?.click()}
+                disabled={uploadingSlot === 'REF' || scene.refImages.length >= MAX_SCENE_REF_IMAGES}
+              >
+                {uploadingSlot === 'REF' ? (
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                ) : (
+                  <Upload className="mr-1 h-3 w-3" />
+                )}
+                เพิ่มรูป
+              </Button>
+              <input
+                ref={refImagesInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const fs = Array.from(e.target.files ?? [])
+                  if (fs.length) onPickRefImages(fs)
+                  e.target.value = ''
+                }}
+              />
+            </div>
+
+            {scene.refImages.length === 0 ? (
+              <DropZone
+                compact
+                accept="image/*"
+                multiple
+                disabled={uploadingSlot === 'REF'}
+                onFiles={onPickRefImages}
+                title="ลากรูปมาวาง หรือคลิกเพื่อเลือก"
+                hint="สูงสุด 9 รูป · อ้างใน prompt ด้วย <Picture 1> … <Picture 9>"
               />
             ) : (
-              <div />
+              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+                {scene.refImages.map((img, idx) => (
+                  <div
+                    key={`${img.name}-${idx}`}
+                    className="group relative aspect-square overflow-hidden rounded border border-border bg-black"
+                  >
+                    {img.previewUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={img.previewUrl} alt={`Picture ${idx + 1}`} className="h-full w-full object-contain" />
+                    ) : (
+                      <span className="flex h-full w-full items-center justify-center text-[8px] text-muted-foreground">
+                        แนบแล้ว
+                      </span>
+                    )}
+
+                    <span className="absolute left-0.5 top-0.5 rounded bg-black/70 px-1 font-mono text-[8px] text-white">
+                      {idx + 1}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => onRemoveRefImage(idx)}
+                      className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition-opacity hover:bg-destructive group-hover:opacity-100"
+                      aria-label={`ลบรูปที่ ${idx + 1}`}
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                ))}
+
+                {scene.refImages.length < MAX_SCENE_REF_IMAGES && (
+                  <button
+                    type="button"
+                    onClick={() => refImagesInputRef.current?.click()}
+                    disabled={uploadingSlot === 'REF'}
+                    className="flex aspect-square items-center justify-center rounded border border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary disabled:opacity-50"
+                    aria-label="เพิ่มรูปอ้างอิง"
+                  >
+                    <Upload className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* REF2VA: audio lipsync สูงสุด 3 */}
+        {isRef && (
+          <div className="grid gap-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold text-muted-foreground">
+                Audio lipsync ({scene.audioRefs.length}/{MAX_SCENE_REF_AUDIOS})
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-[10px]"
+                onClick={() => audioInputRef.current?.click()}
+                disabled={uploadingSlot === 'AUDIO' || scene.audioRefs.length >= MAX_SCENE_REF_AUDIOS}
+              >
+                {uploadingSlot === 'AUDIO' ? (
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                ) : (
+                  <Upload className="mr-1 h-3 w-3" />
+                )}
+                เพิ่มเสียง
+              </Button>
+              <input
+                ref={audioInputRef}
+                type="file"
+                accept="audio/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const fs = Array.from(e.target.files ?? [])
+                  if (fs.length) onPickAudio(fs)
+                  e.target.value = ''
+                }}
+              />
+            </div>
+
+            {scene.audioRefs.length === 0 ? (
+              <DropZone
+                compact
+                accept="audio/*"
+                multiple
+                disabled={uploadingSlot === 'AUDIO'}
+                onFiles={onPickAudio}
+                title="ลากไฟล์เสียงมาวาง (ไม่บังคับ)"
+                hint=".mp3 / .wav · อ้างใน prompt ด้วย <Audio 1>"
+              />
+            ) : (
+              <div className="grid gap-1.5">
+                {scene.audioRefs.map((a, idx) => {
+                  const tooLong = a.durationSec != null && a.durationSec > scene.duration + 0.6
+
+                  return (
+                    <div key={`${a.name}-${idx}`} className="grid gap-1 rounded-lg border border-border bg-muted/20 p-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="shrink-0 rounded-full bg-primary/15 px-1.5 font-mono text-[9px] font-bold text-primary">
+                          Audio {idx + 1}
+                        </span>
+                        <Music className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate text-[10px]" title={a.originalName || a.name}>
+                          {a.originalName || a.name}
+                        </span>
+                        {a.durationSec != null && (
+                          <span className={cn('shrink-0 font-mono text-[9px]', tooLong ? 'text-orange-500' : 'text-muted-foreground')}>
+                            {a.durationSec.toFixed(1)}s
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => onRemoveAudio(idx)}
+                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-destructive"
+                          aria-label={`ลบไฟล์เสียงที่ ${idx + 1}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+
+                      {a.previewUrl && (
+                        <audio src={a.previewUrl} controls preload="metadata" className="h-7 w-full" />
+                      )}
+
+                      {tooLong && (
+                        <p className="text-[9px] leading-relaxed text-orange-500">
+                          เสียงยาว {a.durationSec?.toFixed(1)}s แต่ฉากนี้ตั้ง {scene.duration}s —
+                          ปากจะขยับไม่ครบประโยค
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
         )}
@@ -425,8 +659,8 @@ function SceneCard(props: SceneCardProps) {
               className="h-8 rounded-md border border-input bg-background px-2 text-[10px] shadow-sm"
             >
               {RESOLUTIONS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
+                <option key={r.value} value={r.value}>
+                  {r.label}
                 </option>
               ))}
             </select>
@@ -436,8 +670,8 @@ function SceneCard(props: SceneCardProps) {
               className="h-8 rounded-md border border-input bg-background px-2 text-[10px] shadow-sm"
             >
               {ASPECT_RATIOS.map((a) => (
-                <option key={a} value={a}>
-                  {a}
+                <option key={a.value} value={a.value}>
+                  {a.label}
                 </option>
               ))}
             </select>
@@ -498,7 +732,7 @@ export function ShortFilmStudio() {
   const [submittingAll, setSubmittingAll] = React.useState(false)
   const [merging, setMerging] = React.useState(false)
   const [extractingScene, setExtractingScene] = React.useState<number | null>(null)
-  const [uploading, setUploading] = React.useState<Record<number, 'A' | 'B' | null>>({})
+  const [uploading, setUploading] = React.useState<Record<number, 'A' | 'B' | 'REF' | 'AUDIO' | null>>({})
   const [enhanceScene, setEnhanceScene] = React.useState<number | null>(null)
 
   // ========================================
@@ -576,6 +810,131 @@ export function ShortFilmStudio() {
     updateScene(i, slot === 'A' ? { slotA: null } : { slotB: null })
   }
 
+  // ========================================
+  // REF2VA: รูปอ้างอิง (สูงสุด 9) + เสียง (สูงสุด 3)
+  // ========================================
+
+  const pickRefImages = async (i: number, files: File[]) => {
+    const room = MAX_SCENE_REF_IMAGES - scenes[i].refImages.length
+    if (room <= 0) {
+      toast.error(`ฉาก ${i + 1}: ใส่รูปได้สูงสุด ${MAX_SCENE_REF_IMAGES} รูป`)
+      return
+    }
+
+    const picked = files.filter((f) => f.type.startsWith('image/')).slice(0, room)
+    if (picked.length === 0) {
+      toast.error('กรุณาเลือกไฟล์รูปภาพ')
+      return
+    }
+
+    setUploading((p) => ({ ...p, [i]: 'REF' }))
+    try {
+      const uploaded = await uploadReferenceFiles(picked)
+      const next: SlotState[] = uploaded.map((u, idx) => ({
+        name: u.stored_filename,
+        previewUrl: URL.createObjectURL(picked[idx]),
+      }))
+
+      setScenes((prev) =>
+        prev.map((s, idx) =>
+          idx === i
+            ? { ...s, refImages: [...s.refImages, ...next].slice(0, MAX_SCENE_REF_IMAGES) }
+            : s
+        )
+      )
+      toast.success(`ฉาก ${i + 1}: เพิ่มรูปอ้างอิง ${next.length} รูป`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
+    } finally {
+      setUploading((p) => ({ ...p, [i]: null }))
+    }
+  }
+
+  const removeRefImage = (i: number, index: number) => {
+    setScenes((prev) =>
+      prev.map((s, idx) => {
+        if (idx !== i) return s
+        const target = s.refImages[index]
+        if (target?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(target.previewUrl)
+        return { ...s, refImages: s.refImages.filter((_, k) => k !== index) }
+      })
+    )
+  }
+
+  const pickAudio = async (i: number, files: File[]) => {
+    const room = MAX_SCENE_REF_AUDIOS - scenes[i].audioRefs.length
+    if (room <= 0) {
+      toast.error(`ฉาก ${i + 1}: ใส่ไฟล์เสียงได้สูงสุด ${MAX_SCENE_REF_AUDIOS} ไฟล์`)
+      return
+    }
+
+    const picked = files
+      .filter((f) => f.type.startsWith('audio/') || /\.(mp3|wav|flac|m4a|aac|ogg)$/i.test(f.name))
+      .slice(0, room)
+
+    if (picked.length === 0) {
+      toast.error('กรุณาเลือกไฟล์เสียง (.mp3 / .wav)')
+      return
+    }
+
+    setUploading((p) => ({ ...p, [i]: 'AUDIO' }))
+    try {
+      const uploaded = await uploadReferenceFiles(picked)
+      const next: AudioState[] = uploaded.map((u, idx) => ({
+        name: u.stored_filename,
+        originalName: picked[idx].name,
+        previewUrl: URL.createObjectURL(picked[idx]),
+      }))
+
+      setScenes((prev) =>
+        prev.map((s, idx) =>
+          idx === i
+            ? { ...s, audioRefs: [...s.audioRefs, ...next].slice(0, MAX_SCENE_REF_AUDIOS) }
+            : s
+        )
+      )
+
+      next.forEach((item) => {
+        const probe = new Audio()
+        probe.preload = 'metadata'
+        probe.onloadedmetadata = () => {
+          const sec = Number.isFinite(probe.duration) ? probe.duration : null
+          if (sec === null) return
+          setScenes((prev) =>
+            prev.map((s, idx) =>
+              idx === i
+                ? {
+                    ...s,
+                    audioRefs: s.audioRefs.map((a) =>
+                      a.name === item.name ? { ...a, durationSec: sec } : a
+                    ),
+                  }
+                : s
+            )
+          )
+        }
+        probe.src = item.previewUrl
+      })
+
+      toast.success(`ฉาก ${i + 1}: เพิ่มไฟล์เสียง ${next.length} ไฟล์`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'อัปโหลดไฟล์เสียงไม่สำเร็จ')
+    } finally {
+      setUploading((p) => ({ ...p, [i]: null }))
+    }
+  }
+
+  const removeAudio = (i: number, index: number) => {
+    setScenes((prev) =>
+      prev.map((s, idx) => {
+        if (idx !== i) return s
+        const target = s.audioRefs[index]
+        if (target?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(target.previewUrl)
+        return { ...s, audioRefs: s.audioRefs.filter((_, k) => k !== index) }
+      })
+    )
+  }
+
   const pullPrev = async (i: number) => {
     const prev = scenes[i - 1]
     const prevJob = prev ? jobOf(prev) : undefined
@@ -628,22 +987,35 @@ export function ShortFilmStudio() {
       duration_seconds: scene.duration,
     }
 
-    if (scene.type === 'FL2VA') {
+    const baseType = sceneBaseType(scene.type)
+
+    if (baseType === 'FL2VA') {
       return {
         ...base,
         first_frame_name: scene.slotA?.name ?? null,
         last_frame_name: scene.slotB?.name ?? null,
         reference_names: [],
+        audio_reference_names: [],
       }
     }
 
-    if (scene.type === 'REF2VA') {
-      const refs = [scene.slotA?.name, scene.slotB?.name].filter((x): x is string => Boolean(x))
+    if (baseType === 'REF2VA') {
+      const refs = scene.refImages
+        .map((r) => r.name)
+        .filter(Boolean)
+        .slice(0, MAX_SCENE_REF_IMAGES)
+
+      const audios = scene.audioRefs
+        .map((a) => a.name)
+        .filter(Boolean)
+        .slice(0, MAX_SCENE_REF_AUDIOS)
+
       return {
         ...base,
         first_frame_name: null,
         last_frame_name: null,
         reference_names: refs,
+        audio_reference_names: audios,
       }
     }
 
@@ -652,13 +1024,17 @@ export function ShortFilmStudio() {
       first_frame_name: null,
       last_frame_name: null,
       reference_names: [],
+      audio_reference_names: [],
     }
   }
 
   const validateScene = (scene: SceneState): string | null => {
     if (!scene.prompt.trim()) return 'กรุณากรอก prompt'
-    if (scene.type === 'FL2VA' && !scene.slotA && !scene.slotB) return 'FL2VA ต้องมี first/last frame'
-    if (scene.type === 'REF2VA' && !scene.slotA) return 'REF2VA ต้องมี reference อย่างน้อย 1'
+
+    const baseType = sceneBaseType(scene.type)
+
+    if (baseType === 'FL2VA' && !scene.slotA && !scene.slotB) return 'FL2VA ต้องมี first/last frame'
+    if (baseType === 'REF2VA' && scene.refImages.length === 0) return 'REF2VA ต้องมี reference อย่างน้อย 1'
     return null
   }
 
@@ -793,13 +1169,21 @@ export function ShortFilmStudio() {
     const scene = scenes[enhanceScene]
     if (!scene) return empty
 
-    const images = [scene.slotA, scene.slotB]
-      .filter((slot): slot is SlotState => Boolean(slot && slot.name))
+    const baseType = sceneBaseType(scene.type)
+
+    const source =
+      baseType === 'REF2VA'
+        ? scene.refImages
+        : [scene.slotA, scene.slotB].filter((slot): slot is SlotState => Boolean(slot))
+
+    const images = source
+      .filter((slot) => Boolean(slot.name))
+      .slice(0, 6)
       .map((slot) => ({ name: slot.name, previewUrl: slot.previewUrl }))
 
     return {
       images,
-      templateId: scene.type === 'FL2VA' ? 'continuation' : 'cinematic_fl2v',
+      templateId: baseType === 'FL2VA' ? 'continuation' : 'cinematic_fl2v',
     }
   }, [enhanceScene, scenes])
 
@@ -844,8 +1228,8 @@ export function ShortFilmStudio() {
                 className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-sm disabled:opacity-50"
               >
                 {RESOLUTIONS.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
+                  <option key={r.value} value={r.value}>
+                    {r.label}
                   </option>
                 ))}
               </select>
@@ -860,8 +1244,8 @@ export function ShortFilmStudio() {
                 className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-sm disabled:opacity-50"
               >
                 {ASPECT_RATIOS.map((a) => (
-                  <option key={a} value={a}>
-                    {a}
+                  <option key={a.value} value={a.value}>
+                    {a.label}
                   </option>
                 ))}
               </select>
@@ -895,6 +1279,10 @@ export function ShortFilmStudio() {
             onUpdate={(patch) => updateScene(i, patch)}
             onPickFile={(slot, f) => void pickFile(i, slot, f)}
             onClearSlot={(slot) => clearSlot(i, slot)}
+            onPickRefImages={(files) => void pickRefImages(i, files)}
+            onRemoveRefImage={(index) => removeRefImage(i, index)}
+            onPickAudio={(files) => void pickAudio(i, files)}
+            onRemoveAudio={(index) => removeAudio(i, index)}
             onPullPrev={() => void pullPrev(i)}
             onSubmit={() => void submitScene(i)}
             onClearScene={() => clearScene(i)}

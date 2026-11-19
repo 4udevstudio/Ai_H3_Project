@@ -6,12 +6,15 @@
  * ========================================
  * เลือกโหมดการเชื่อมต่อ ComfyUI:
  * - Local  : ComfyUI ในเครื่อง (http://127.0.0.1:8188)
- * - RunPod : ComfyUI บน RunPod Pod ผ่าน proxy URL
- * พร้อมปุ่ม Test connection และ Save (บันทึกลง backend/config.json)
+ * - RunPod : ใส่ Base URL เพียงช่องเดียว
+ *
+ * Note:
+ * - ลบ Base URL แล้ว Save = ล้างจริง (ส่ง "" ไม่ใช่ undefined)
+ * - ส่ง runpod_pod_id = "" ทุกครั้ง เพื่อล้างค่าเก่าที่จะฟื้น URL กลับมา
  */
 
 import * as React from 'react'
-import { Cloud, Loader2, Monitor, PlugZap, Save } from 'lucide-react'
+import { AlertCircle, Cloud, Loader2, Monitor, PlugZap, Save, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -21,6 +24,8 @@ import { BACKEND_URL } from '@/lib/backend'
 import { cn } from '@/lib/utils'
 
 type Mode = 'local' | 'remote'
+
+const LOCAL_URL = 'http://127.0.0.1:8188'
 
 interface ConnectionSnapshot {
   mode: string
@@ -39,9 +44,7 @@ interface TestResult {
 
 export function ConnectionSettings() {
   const [mode, setMode] = React.useState<Mode>('local')
-  const [podId, setPodId] = React.useState('')
   const [baseUrl, setBaseUrl] = React.useState('')
-  const [token, setToken] = React.useState('')
   const [snapshot, setSnapshot] = React.useState<ConnectionSnapshot | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [testing, setTesting] = React.useState(false)
@@ -53,10 +56,11 @@ export function ConnectionSettings() {
       const res = await fetch(`${BACKEND_URL}/api/system/connection`, { cache: 'no-store' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = (await res.json()) as ConnectionSnapshot
+
       setSnapshot(data)
       setMode(data.is_remote ? 'remote' : 'local')
-      setPodId(data.runpod_pod_id ?? '')
-      setBaseUrl(data.base_url ?? '')
+      // โหลดเข้าช่องเฉพาะตอนเป็น remote — ไม่เอา URL ของ local มาใส่
+      setBaseUrl(data.is_remote ? data.base_url ?? '' : '')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'โหลดค่าการเชื่อมต่อไม่สำเร็จ')
     } finally {
@@ -68,20 +72,26 @@ export function ConnectionSettings() {
     void load()
   }, [load])
 
-  const previewUrl =
-    mode === 'local'
-      ? 'http://127.0.0.1:8188'
-      : baseUrl.trim() ||
-        (podId.trim() ? `https://${podId.trim()}-8188.proxy.runpod.net` : '')
+  const trimmedUrl = baseUrl.trim()
+  const remoteMissing = mode === 'remote' && trimmedUrl === ''
+  const previewUrl = mode === 'local' ? LOCAL_URL : trimmedUrl
 
+  /**
+   * ส่งค่าว่างเป็น "" เสมอ (ห้ามแปลงเป็น undefined)
+   * และล้าง runpod_pod_id ทุกครั้ง กัน backend สร้าง URL เก่ากลับมา
+   */
   const payload = () => ({
     mode,
-    base_url: mode === 'remote' ? baseUrl.trim() || undefined : undefined,
-    runpod_pod_id: mode === 'remote' ? podId.trim() || undefined : undefined,
-    auth_token: token.trim() || undefined,
+    base_url: mode === 'remote' ? trimmedUrl : LOCAL_URL,
+    runpod_pod_id: '',
   })
 
   const handleTest = async () => {
+    if (remoteMissing) {
+      toast.error('ยังไม่ได้ใส่ Base URL')
+      return
+    }
+
     setTesting(true)
     setTestResult(null)
     try {
@@ -110,10 +120,17 @@ export function ConnectionSettings() {
         body: JSON.stringify(payload()),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
       const data = (await res.json()) as { connection: ConnectionSnapshot }
       setSnapshot(data.connection)
-      setToken('')
-      toast.success('บันทึกการเชื่อมต่อแล้ว — ใช้ได้ทันทีไม่ต้อง restart')
+      setBaseUrl(data.connection.is_remote ? data.connection.base_url ?? '' : '')
+      setTestResult(null)
+
+      if (data.connection.is_remote && !data.connection.base_url) {
+        toast.success('ล้าง Base URL แล้ว — ยังไม่ได้ตั้งค่า RunPod')
+      } else {
+        toast.success('บันทึกการเชื่อมต่อแล้ว — ใช้ได้ทันทีไม่ต้อง restart')
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ')
     } finally {
@@ -183,47 +200,58 @@ export function ConnectionSettings() {
               </button>
             </div>
 
-            {/* Remote fields */}
+            {/* Remote: Base URL ช่องเดียว */}
             {mode === 'remote' && (
-              <div className="grid gap-4 rounded-xl border border-border bg-muted/20 p-4">
+              <div className="grid gap-3 rounded-xl border border-border bg-muted/20 p-4">
                 <div className="grid gap-2">
-                  <label className="text-sm font-medium">RunPod Pod ID</label>
-                  <Input
-                    value={podId}
-                    onChange={(e) => setPodId(e.target.value)}
-                    placeholder="เช่น abc123def456"
-                    className="font-mono text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    ระบบจะสร้าง URL ให้อัตโนมัติ: https://&lt;pod-id&gt;-8188.proxy.runpod.net
-                  </p>
-                </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <label htmlFor="base-url" className="text-sm font-medium">
+                      Base URL
+                    </label>
+                    {baseUrl !== '' && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                        onClick={() => setBaseUrl('')}
+                      >
+                        <X className="mr-1 h-3.5 w-3.5" />
+                        ล้างช่อง
+                      </Button>
+                    )}
+                  </div>
 
-                <div className="grid gap-2">
-                  <label className="text-sm font-medium">หรือใส่ Base URL เอง (ไม่บังคับ)</label>
                   <Input
+                    id="base-url"
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
                     placeholder="https://xxxx-8188.proxy.runpod.net"
                     className="font-mono text-sm"
                   />
-                </div>
 
-                <div className="grid gap-2">
-                  <label className="text-sm font-medium">Auth Token (ไม่บังคับ)</label>
-                  <Input
-                    type="password"
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                    placeholder="เว้นว่างถ้า proxy ไม่มีรหัสผ่าน"
-                    className="font-mono text-sm"
-                  />
                   <p className="text-xs text-muted-foreground">
-                    {snapshot?.has_auth_token
-                      ? 'มี token บันทึกไว้แล้ว — เว้นว่างเพื่อคงค่าเดิม'
-                      : 'ยังไม่มี token'}
+                    ก๊อป URL ของ ComfyUI จากหน้า RunPod Pod มาวางทั้งเส้น —
+                    ลบให้ว่างแล้วกด Save เพื่อล้างค่าที่บันทึกไว้
                   </p>
                 </div>
+
+                {remoteMissing && (
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      ยังไม่ได้ระบุ URL — Save ตอนนี้จะบันทึกเป็นค่าว่าง
+                      และสร้างวิดีโอไม่ได้จนกว่าจะใส่ URL หรือสลับกลับ Local
+                    </span>
+                  </div>
+                )}
+
+                {snapshot?.has_auth_token && (
+                  <p className="text-[11px] text-muted-foreground">
+                    มี Auth Token เดิมบันทึกอยู่ใน backend/config.json —
+                    หน้านี้ไม่ได้ใช้/แก้ token ถ้าต้องการล้างให้แก้ไฟล์นั้นโดยตรง
+                  </p>
+                )}
               </div>
             )}
 
@@ -258,7 +286,12 @@ export function ConnectionSettings() {
 
             {/* Actions */}
             <div className="flex flex-wrap items-center gap-3">
-              <Button type="button" variant="outline" onClick={() => void handleTest()} disabled={testing}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleTest()}
+                disabled={testing || remoteMissing}
+              >
                 {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlugZap className="mr-2 h-4 w-4" />}
                 Test connection
               </Button>

@@ -663,7 +663,9 @@ def apply_connection_settings(
     if auth_token is not None:
         COMFYUI_AUTH_TOKEN = str(auth_token).strip()
 
-    if base_url is not None and str(base_url).strip():
+    if base_url is not None:
+        # แยก "ไม่ได้ส่งมา" (None → คงค่าเดิม) ออกจาก "ส่งค่าว่าง" ("" → ล้างจริง)
+        # ถ้าส่ง "" ต้องว่างจริง ห้ามฟื้นค่าเก่าจาก runpod_pod_id
         COMFYUI_API_BASE_URL = str(base_url).strip().rstrip("/")
     elif COMFYUI_MODE == "remote" and RUNPOD_POD_ID:
         COMFYUI_API_BASE_URL = build_runpod_proxy_url(RUNPOD_POD_ID, RUNPOD_HTTP_PORT, RUNPOD_PROXY_DOMAIN)

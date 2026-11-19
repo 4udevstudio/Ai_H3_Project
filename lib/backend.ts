@@ -93,6 +93,7 @@ export interface QueueJobResponse {
   message: string
   reference_count: number
   reference_names: string[]
+  audio_reference_names?: string[]
   error?: string | null
   created_at: string
   updated_at: string
@@ -120,6 +121,7 @@ export interface CreateGenerationPayload {
   task_adapter?: string
   lora_used?: string
   reference_names?: string[]
+  audio_reference_names?: string[]
   first_frame_name?: string | null
   last_frame_name?: string | null
 }

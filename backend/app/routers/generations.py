@@ -50,8 +50,13 @@ class CreateGenerationRequest(BaseModel):
     lora_used: Optional[str] = Field(None, description="LoRA ที่ใช้")
     reference_names: Optional[list[str]] = Field(
         default=None,
-        max_length=10,
-        description="stored_filename จาก upload API สูงสุด 10 ไฟล์",
+        max_length=9,
+        description="stored_filename ของรูปอ้างอิง สูงสุด 9 ไฟล์ (REF2VA)",
+    )
+    audio_reference_names: Optional[list[str]] = Field(
+        default=None,
+        max_length=3,
+        description="ไฟล์เสียงอ้างอิงสำหรับ lipsync สูงสุด 3 ไฟล์ (REF2VA)",
     )
     first_frame_name: Optional[str] = Field(
         None,
@@ -85,7 +90,7 @@ def create_generation(
     except workflow_service.WorkflowValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if wtype == workflow_service.WORKFLOW_FL2VA:
+    if wtype in (workflow_service.WORKFLOW_FL2VA, workflow_service.WORKFLOW_FL2VA_LOW):
         has_frames = bool(
             payload.first_frame_name
             or payload.last_frame_name
@@ -109,6 +114,7 @@ def create_generation(
         task_adapter=payload.task_adapter,
         lora_used=payload.lora_used,
         reference_names=payload.reference_names,
+        audio_reference_names=payload.audio_reference_names,
         first_frame_name=payload.first_frame_name,
         last_frame_name=payload.last_frame_name,
     )

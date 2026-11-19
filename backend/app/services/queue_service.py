@@ -61,6 +61,7 @@ class QueueJob:
     message: str = "รอในคิว"
     reference_count: int = 0
     reference_names: list[str] = field(default_factory=list)
+    audio_reference_names: list[str] = field(default_factory=list)
     first_frame_name: Optional[str] = None
     last_frame_name: Optional[str] = None
     error: Optional[str] = None
@@ -131,6 +132,7 @@ class QueueService:
         task_adapter: Optional[str] = None,
         lora_used: Optional[str] = None,
         reference_names: Optional[list[str]] = None,
+        audio_reference_names: Optional[list[str]] = None,
         aspect_ratio: Optional[str] = None,
         first_frame_name: Optional[str] = None,
         last_frame_name: Optional[str] = None,
@@ -139,6 +141,7 @@ class QueueService:
         สร้างงานใหม่เข้า queue
         """
         refs = reference_names or []
+        audio_refs = audio_reference_names or []
 
         job = QueueJob(
             id=self._generate_id(),
@@ -155,6 +158,7 @@ class QueueService:
             total_steps=6,
             reference_count=len(refs),
             reference_names=refs,
+            audio_reference_names=audio_refs,
             first_frame_name=first_frame_name,
             last_frame_name=last_frame_name,
             message="รอในคิว",

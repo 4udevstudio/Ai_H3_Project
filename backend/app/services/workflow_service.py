@@ -77,8 +77,9 @@ WORKFLOW_TYPE_ALIASES = {
 # Constants
 # ========================================
 
-MAX_REFERENCE_IMAGES = 2
+MAX_REFERENCE_IMAGES = 9
 MIN_REFERENCE_IMAGES = 1
+MAX_REF_AUDIOS = 3
 
 DEFAULT_ASPECT_RATIO = "16:9 (Widescreen)"
 DEFAULT_MEGAPIXELS = 0.5
@@ -126,6 +127,7 @@ NODE_REF2VA_MAIN_UNET_LOADER = "127"
 NODE_REF2VA_MAIN_VAE_LOADERS = frozenset({"119", "120"})
 NODE_REF2VA_MAIN_SAMPLER = "125"
 NODE_REF2VA_MAIN_CREATE_VIDEO = "152"
+NODE_REF2VA_MAIN = "136"  # MiniMaxH3ReferenceToVideo
 
 # T2V node IDs
 NODE_T2V_RESOLUTION = "115"
@@ -652,19 +654,27 @@ def _normalize_lora_strength(strength: float | int | None) -> float:
 
 def _prepare_reference_filenames(reference_filenames: list[str]) -> list[str]:
     """
-    เตรียม reference filenames สำหรับ workflow 2 ช่อง
+    เตรียม reference filenames ตามจำนวนจริง (1..MAX_REFERENCE_IMAGES)
+    ไม่ทำซ้ำรูปเดิมแล้ว เพราะ reference tokens วิ่งผ่านทุก sampling step
     """
-    cleaned = [Path(name).name for name in reference_filenames]
+    cleaned = [
+        Path(name).name
+        for name in (reference_filenames or [])
+        if str(name).strip()
+    ]
 
-    if len(cleaned) == 1:
-        return [cleaned[0], cleaned[0]]
+    if not cleaned:
+        raise WorkflowValidationError(
+            f"REF2VA ต้องมี reference image อย่างน้อย {MIN_REFERENCE_IMAGES} ไฟล์"
+        )
 
-    if len(cleaned) == 2:
-        return [cleaned[0], cleaned[1]]
+    if len(cleaned) > MAX_REFERENCE_IMAGES:
+        raise WorkflowValidationError(
+            f"รองรับ reference image สูงสุด {MAX_REFERENCE_IMAGES} ไฟล์ "
+            f"(ได้รับ {len(cleaned)} ไฟล์)"
+        )
 
-    raise WorkflowValidationError(
-        f"จำนวน reference ต้องเป็น {MIN_REFERENCE_IMAGES} หรือ {MAX_REFERENCE_IMAGES}"
-    )
+    return cleaned
 
 
 def _find_save_video_node(
@@ -749,6 +759,7 @@ def build_ref2va_workflow(
     sampler_name: str | None = DEFAULT_SAMPLER_NAME,
     sigmas: str | None = DEFAULT_SIGMAS,
     filename_prefix: str | None = DEFAULT_FILENAME_PREFIX,
+    audio_reference_filenames: list[str] | None = None,
 ) -> dict[str, Any]:
     """
     สร้าง REF2VA workflow JSON พร้อมส่งให้ ComfyUI
@@ -827,7 +838,19 @@ def build_ref2va_workflow(
     resolution_inputs["aspect_ratio"] = real_aspect_ratio
     resolution_inputs["megapixels"] = real_megapixels
 
-    # Reference images
+    # Reference images (1..9 รูป)
+    main_node = workflow.get(NODE_REF2VA_MAIN)
+    if not isinstance(main_node, dict):
+        raise WorkflowTemplateError(
+            f"template ขาด node REF2VA main: {NODE_REF2VA_MAIN}"
+        )
+
+    main_inputs = main_node.setdefault("inputs", {})
+    if not isinstance(main_inputs, dict):
+        raise WorkflowTemplateError(
+            f"node {NODE_REF2VA_MAIN} inputs ต้องเป็น object"
+        )
+
     load_image_0 = workflow.get(NODE_REF2VA_LOAD_IMAGE_0)
     if not isinstance(load_image_0, dict):
         raise WorkflowTemplateError(
@@ -841,28 +864,35 @@ def build_ref2va_workflow(
         )
 
     load_image_0_inputs["image"] = prepared_refs[0]
+    main_inputs["ref_images.ref_image_0"] = [NODE_REF2VA_LOAD_IMAGE_0, 0]
 
-    load_image_1 = workflow.get(NODE_REF2VA_LOAD_IMAGE_1)
+    # ล้าง slot รูปเก่าที่เกินจำนวนจริงทิ้ง (กัน orphan link)
+    for key in list(main_inputs.keys()):
+        if key.startswith("ref_images.ref_image_") and key != "ref_images.ref_image_0":
+            main_inputs.pop(key, None)
 
-    if len(reference_filenames) >= 2:
-        if not isinstance(load_image_1, dict):
-            raise WorkflowTemplateError(
-                f"template ขาด node LoadImage ตัวที่ 2: {NODE_REF2VA_LOAD_IMAGE_1} "
-                "ไม่สามารถใช้ reference 2 ไฟล์ได้"
-            )
-
-        load_image_1_inputs = load_image_1.setdefault("inputs", {})
-        if not isinstance(load_image_1_inputs, dict):
-            raise WorkflowTemplateError(
-                f"node {NODE_REF2VA_LOAD_IMAGE_1} inputs ต้องเป็น object"
-            )
-
-        load_image_1_inputs["image"] = prepared_refs[1]
+    if len(prepared_refs) == 1:
+        workflow.pop(NODE_REF2VA_LOAD_IMAGE_1, None)
     else:
-        if isinstance(load_image_1, dict):
-            load_image_1_inputs = load_image_1.setdefault("inputs", {})
-            if isinstance(load_image_1_inputs, dict):
-                load_image_1_inputs["image"] = prepared_refs[0]
+        node_150 = workflow.get(NODE_REF2VA_LOAD_IMAGE_1)
+        if not isinstance(node_150, dict):
+            node_150 = {"class_type": "LoadImage", "inputs": {}}
+            workflow[NODE_REF2VA_LOAD_IMAGE_1] = node_150
+
+        inputs_150 = node_150.setdefault("inputs", {})
+        if not isinstance(inputs_150, dict):
+            inputs_150 = {}
+            node_150["inputs"] = inputs_150
+
+        inputs_150["image"] = prepared_refs[1]
+        main_inputs["ref_images.ref_image_1"] = [NODE_REF2VA_LOAD_IMAGE_1, 0]
+
+        # รูปที่ 3..9 → inject LoadImage ใหม่ที่ id ว่าง (เริ่ม 400 กันชน audio 300-302)
+        for index in range(2, len(prepared_refs)):
+            node_id = _inject_load_image(workflow, prepared_refs[index], "400")
+            main_inputs[f"ref_images.ref_image_{index}"] = [node_id, 0]
+
+    print(f"[workflow_service] REF2VA ใช้ reference {len(prepared_refs)} รูป")
 
     # LoRA
     lora_node = workflow.get(NODE_REF2VA_LORA)
@@ -931,6 +961,17 @@ def build_ref2va_workflow(
         workflow=workflow,
         upscale_seed=effective_upscale_seed,
     )
+
+    # === Audio References (สูงสุด 3) ===
+    audio_refs = [Path(a).name for a in (audio_reference_filenames or []) if a][:MAX_REF_AUDIOS]
+    for i, audio_file in enumerate(audio_refs):
+        audio_node_id = str(300 + i)
+        workflow[audio_node_id] = {
+            "class_type": "LoadAudio",
+            "inputs": {"audio": audio_file},
+            "_meta": {"title": f"LoadAudio (Audio {i + 1})"},
+        }
+        workflow[NODE_REF2VA_MAIN]["inputs"][f"ref_audios.ref_audio_{i}"] = [audio_node_id, 0]
 
     return workflow
 
@@ -1374,27 +1415,54 @@ def build_ref2va_gguf_workflow(
     prompt, reference_filenames, seed=-1, duration=5,
     aspect_ratio="16:9 (Widescreen)", megapixels=0.5,
     filename_prefix="video/H3_Studio_REF2VA_LOW",
+    audio_reference_filenames=None,
 ):
     if not prompt or not prompt.strip():
         raise WorkflowValidationError("prompt ห้ามว่างเปล่า")
 
-    refs = [Path(r).name for r in (reference_filenames or []) if r]
+    refs = [Path(r).name for r in (reference_filenames or []) if r][:MAX_REFERENCE_IMAGES]
     if not refs:
         raise WorkflowValidationError("REF2VA (Low VRAM) ต้องมี reference อย่างน้อย 1 รูป")
 
     wf = _load_gguf_template("minimax_h3_ref2va_gguf.api.json")
     wf[NODE_GGUF_REF2VA_PROMPT]["inputs"]["value"] = prompt.strip()
 
+    gguf_main_inputs = wf[NODE_GGUF_REF2VA_NODE]["inputs"]
+
     wf[NODE_GGUF_REF2VA_REF0]["inputs"]["image"] = refs[0]
-    if len(refs) >= 2:
-        wf[NODE_GGUF_REF2VA_REF1]["inputs"]["image"] = refs[1]
-    else:
-        wf[NODE_GGUF_REF2VA_NODE]["inputs"].pop("ref_images.ref_image_1", None)
+    gguf_main_inputs["ref_images.ref_image_0"] = [NODE_GGUF_REF2VA_REF0, 0]
+
+    for key in list(gguf_main_inputs.keys()):
+        if key.startswith("ref_images.ref_image_") and key != "ref_images.ref_image_0":
+            gguf_main_inputs.pop(key, None)
+
+    if len(refs) == 1:
         wf.pop(NODE_GGUF_REF2VA_REF1, None)
+    else:
+        wf[NODE_GGUF_REF2VA_REF1]["inputs"]["image"] = refs[1]
+        gguf_main_inputs["ref_images.ref_image_1"] = [NODE_GGUF_REF2VA_REF1, 0]
+
+        for index in range(2, len(refs)):
+            node_id = _inject_load_image(wf, refs[index], "400")
+            gguf_main_inputs[f"ref_images.ref_image_{index}"] = [node_id, 0]
+
+    print(f"[workflow_service] REF2VA GGUF ใช้ reference {len(refs)} รูป")
 
     wf[NODE_GGUF_REF2VA_SEED]["inputs"]["noise_seed"] = _gguf_resolve_seed(seed)
     wf[NODE_GGUF_REF2VA_DURATION]["inputs"]["value"] = _gguf_resolve_duration(duration)
     wf[NODE_GGUF_REF2VA_RESOLUTION]["inputs"]["aspect_ratio"] = aspect_ratio
     wf[NODE_GGUF_REF2VA_RESOLUTION]["inputs"]["megapixels"] = megapixels
     wf[NODE_GGUF_REF2VA_SAVE]["inputs"]["filename_prefix"] = filename_prefix
+
+    # === Audio References (สูงสุด 3) ===
+    audio_refs = [Path(a).name for a in (audio_reference_filenames or []) if a][:MAX_REF_AUDIOS]
+    for i, audio_file in enumerate(audio_refs):
+        audio_node_id = str(300 + i)
+        wf[audio_node_id] = {
+            "class_type": "LoadAudio",
+            "inputs": {"audio": audio_file},
+            "_meta": {"title": f"LoadAudio (Audio {i + 1})"},
+        }
+        wf[NODE_GGUF_REF2VA_NODE]["inputs"][f"ref_audios.ref_audio_{i}"] = [audio_node_id, 0]
+
     return wf

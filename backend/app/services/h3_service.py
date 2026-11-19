@@ -31,6 +31,7 @@ class GenerationCancelled(RuntimeError):
 
 
 IMAGE_EXTENSIONS = set(config.ALLOWED_IMAGE_EXTENSIONS)
+AUDIO_EXTENSIONS = set(config.ALLOWED_AUDIO_EXTENSIONS)
 
 # Defaults
 DEFAULT_DURATION_SECONDS = 5.0
@@ -104,7 +105,24 @@ def _select_reference_images(job: "QueueJob") -> list[str]:
             "และไฟล์นั้นต้องมีอยู่ใน ComfyUI/input"
         )
 
-    return images[:2]
+    return images[:workflow_service.MAX_REFERENCE_IMAGES]
+
+def _select_audio_references(job: "QueueJob") -> list[str]:
+    """
+    เลือก audio reference จาก job.audio_reference_names (สูงสุด 3 ไฟล์)
+    """
+    names = [
+        Path(str(name)).name
+        for name in (getattr(job, "audio_reference_names", None) or [])
+        if str(name).strip()
+    ]
+
+    audios = [
+        name for name in names
+        if Path(name).suffix.lower() in AUDIO_EXTENSIONS
+    ]
+
+    return audios[:3]
 
 
 def _normalize_megapixels_value(value: float) -> float:
@@ -482,12 +500,14 @@ def process_job(job: "QueueJob") -> None:
 
     elif workflow_type == WORKFLOW_REF2VA:
         reference_images = _select_reference_images(job)
+        audio_references = _select_audio_references(job)
 
         job.message = "ประกอบ workflow REF2VA จาก template"
 
         workflow = workflow_service.build_ref2va_workflow(
             prompt=job.prompt,
             reference_filenames=reference_images,
+            audio_reference_filenames=audio_references,
             seed=job.seed,
             duration=requested_duration,
             aspect_ratio=getattr(job, "aspect_ratio", None) or DEFAULT_ASPECT_RATIO,
@@ -533,9 +553,11 @@ def process_job(job: "QueueJob") -> None:
 
     elif workflow_type == WORKFLOW_REF2VA_LOW:
         reference_images = _select_reference_images(job)
+        audio_references = _select_audio_references(job)
         job.message = "ประกอบ workflow REF2VA (Low VRAM / GGUF)"
         workflow = workflow_service.build_ref2va_gguf_workflow(
-            prompt=job.prompt, reference_filenames=reference_images, seed=job.seed,
+            prompt=job.prompt, reference_filenames=reference_images,
+            audio_reference_filenames=audio_references, seed=job.seed,
             duration=getattr(job, "duration_seconds", None) or 5,
             aspect_ratio=getattr(job, "aspect_ratio", None) or "16:9 (Widescreen)",
             megapixels=_megapixels_for_resolution(job.resolution),

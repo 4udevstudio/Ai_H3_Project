@@ -126,6 +126,8 @@ interface ReferenceItem {
   file: File
   previewUrl: string
   kind: 'image' | 'video' | 'audio'
+  /** ความยาวไฟล์เสียง (วินาที) — ใช้เตือนถ้าเสียงยาวกว่า Duration */
+  durationSec?: number
 }
 
 interface FrameSlotValue {
@@ -327,6 +329,7 @@ export function GenerationForm() {
   const [loraUsed, setLoraUsed] = React.useState<string>('')
 
   const [references, setReferences] = React.useState<ReferenceItem[]>([])
+  const [audioReferences, setAudioReferences] = React.useState<ReferenceItem[]>([])
 
   const [firstFrame, setFirstFrame] = React.useState<FrameSlotValue | null>(null)
   const [lastFrame, setLastFrame] = React.useState<FrameSlotValue | null>(null)
@@ -340,6 +343,7 @@ export function GenerationForm() {
   const [enhanceOpen, setEnhanceOpen] = React.useState(false)
 
   const fileInputRef = React.useRef<HTMLInputElement | null>(null)
+  const audioInputRef = React.useRef<HTMLInputElement | null>(null)
   const formRef = React.useRef<HTMLFormElement | null>(null)
   const firstFrameInputRef = React.useRef<HTMLInputElement | null>(null)
   const lastFrameInputRef = React.useRef<HTMLInputElement | null>(null)
@@ -425,7 +429,7 @@ export function GenerationForm() {
         kind: detectKind(file),
       })
     }
-    setReferences((prev) => [...prev, ...next].slice(0, 10))
+    setReferences((prev) => [...prev, ...next].slice(0, 9))
   }
 
   const removeReference = (id: string) => {
@@ -438,6 +442,71 @@ export function GenerationForm() {
 
   const clearReferences = () => {
     setReferences((prev) => {
+      prev.forEach((r) => URL.revokeObjectURL(r.previewUrl))
+      return []
+    })
+  }
+
+  // ========================================
+  // Audio reference handlers (lipsync, สูงสุด 3)
+  // ========================================
+
+  const addAudioReferences = (files: File[] | FileList | null) => {
+    if (!files || files.length === 0) return
+
+    const picked = Array.from(files).filter(
+      (f) => f.type.startsWith('audio/') || /\.(mp3|wav|flac|m4a|aac|ogg)$/i.test(f.name)
+    )
+
+    if (picked.length === 0) {
+      toast.error('กรุณาเลือกไฟล์เสียงเท่านั้น (.mp3 / .wav)')
+      return
+    }
+
+    const room = 3 - audioReferences.length
+    if (room <= 0) {
+      toast.error('ใส่ไฟล์เสียงได้สูงสุด 3 ไฟล์')
+      return
+    }
+
+    const next: ReferenceItem[] = picked.slice(0, room).map((file) => ({
+      id: `${file.name}-${file.size}-${Math.random().toString(36).slice(2)}`,
+      file,
+      previewUrl: URL.createObjectURL(file),
+      kind: 'audio' as const,
+    }))
+
+    setAudioReferences((prev) => [...prev, ...next])
+
+    if (picked.length > room) {
+      toast.warning(`เพิ่มได้ ${room} ไฟล์ (เกินโควตา 3 ไฟล์)`)
+    }
+
+    // อ่านความยาวเสียงไว้เทียบกับ Duration ที่เลือก
+    next.forEach((item) => {
+      const probe = new Audio()
+      probe.preload = 'metadata'
+      probe.onloadedmetadata = () => {
+        const sec = Number.isFinite(probe.duration) ? probe.duration : null
+        if (sec === null) return
+        setAudioReferences((prev) =>
+          prev.map((r) => (r.id === item.id ? { ...r, durationSec: sec } : r))
+        )
+      }
+      probe.src = item.previewUrl
+    })
+  }
+
+  const removeAudioReference = (id: string) => {
+    setAudioReferences((prev) => {
+      const target = prev.find((r) => r.id === id)
+      if (target) URL.revokeObjectURL(target.previewUrl)
+      return prev.filter((r) => r.id !== id)
+    })
+  }
+
+  const clearAudioReferences = () => {
+    setAudioReferences((prev) => {
       prev.forEach((r) => URL.revokeObjectURL(r.previewUrl))
       return []
     })
@@ -539,6 +608,7 @@ export function GenerationForm() {
 
     try {
       let referenceNames: string[] = []
+      let audioReferenceNames: string[] = []
       let firstName: string | null = firstFrame?.name ?? null
       let lastName: string | null = lastFrame?.name ?? null
 
@@ -546,6 +616,12 @@ export function GenerationForm() {
         const uploaded = await uploadReferenceFiles(references.map((ref) => ref.file))
         referenceNames = uploaded.map((item) => item.stored_filename)
         toast.success(`อัปโหลด reference สำเร็จ ${uploaded.length} ไฟล์ เข้า ComfyUI/input แล้ว`)
+      }
+
+      if (needsReference && audioReferences.length > 0) {
+        const uploadedAudio = await uploadReferenceFiles(audioReferences.map((ref) => ref.file))
+        audioReferenceNames = uploadedAudio.map((item) => item.stored_filename)
+        toast.success(`อัปโหลดไฟล์เสียงสำเร็จ ${uploadedAudio.length} ไฟล์ เข้า ComfyUI/input แล้ว`)
       }
 
       if (isFl2va) {
@@ -577,6 +653,7 @@ export function GenerationForm() {
         task_adapter: taskAdapter.trim() || undefined,
         lora_used: loraUsed.trim() || undefined,
         reference_names: needsReference ? referenceNames : [],
+        audio_reference_names: needsReference ? audioReferenceNames : [],
         first_frame_name: isFl2va ? firstName : null,
         last_frame_name: isFl2va ? lastName : null,
       })
@@ -679,10 +756,14 @@ export function GenerationForm() {
                   value={type}
                   onChange={(event) => {
                     const next = event.target.value as GenerationType
+                    const nextBase = next.endsWith('_LOW') ? next.slice(0, -4) : next
                     setType(next)
-                    if (next !== 'FL2VA') {
+                    if (nextBase !== 'FL2VA') {
                       clearFirstFrame()
                       clearLastFrame()
+                    }
+                    if (nextBase !== 'REF2VA') {
+                      clearAudioReferences()
                     }
                   }}
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -856,9 +937,14 @@ export function GenerationForm() {
             {needsReference && (
               <div className="grid gap-3">
                 <div className="flex items-center justify-between gap-3">
-                  <label className="text-sm font-medium">
-                    Reference files (สูงสุด 2 ไฟล์สำหรับ REF2VA)
-                  </label>
+                  <div className="grid gap-0.5">
+                    <label className="text-sm font-medium">
+                      Reference images (สูงสุด 9 ไฟล์)
+                    </label>
+                    <span className="text-[10px] text-muted-foreground">
+                      อ้างใน prompt ด้วย &lt;Picture 1&gt; … &lt;Picture 9&gt; · ยิ่งใส่หลายรูปยิ่งช้า
+                    </span>
+                  </div>
 
                   <Button
                     type="button"
@@ -889,7 +975,7 @@ export function GenerationForm() {
                     accept="image/*"
                     multiple
                     title="ลากรูปมาวางที่นี่ หรือคลิกเพื่อเลือก"
-                    hint="REF2VA ต้องมีรูปภาพอย่างน้อย 1 ไฟล์ (สูงสุด 10)"
+                    hint="REF2VA ต้องมีรูปภาพอย่างน้อย 1 ไฟล์ (สูงสุด 9)"
                   />
                 ) : (
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -952,8 +1038,129 @@ export function GenerationForm() {
               </div>
             )}
 
+            {/* ========================================
+                REF2VA: Audio Reference (lipsync)
+                ======================================== */}
+            {needsReference && (
+              <div className="grid gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="grid gap-0.5">
+                    <label className="text-sm font-medium">
+                      Audio Reference — lipsync (ไม่บังคับ)
+                    </label>
+                    <span className="text-[10px] text-muted-foreground">
+                      สูงสุด 3 ไฟล์ · อ้างใน prompt ด้วย &lt;Audio 1&gt; &lt;Audio 2&gt; &lt;Audio 3&gt;
+                    </span>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => audioInputRef.current?.click()}
+                    disabled={audioReferences.length >= 3}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    เลือกไฟล์เสียง
+                  </Button>
+
+                  <input
+                    ref={audioInputRef}
+                    type="file"
+                    multiple
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={(event) => {
+                      addAudioReferences(event.target.files)
+                      event.target.value = ''
+                    }}
+                  />
+                </div>
+
+                {audioReferences.length === 0 ? (
+                  <DropZone
+                    compact
+                    accept="audio/*"
+                    multiple
+                    onFiles={(files) => addAudioReferences(files)}
+                    title="ลากไฟล์เสียงมาวางที่นี่ หรือคลิกเพื่อเลือก"
+                    hint=".mp3 / .wav · ความยาวเสียงควรใกล้เคียง Duration ที่เลือก"
+                  />
+                ) : (
+                  <div className="grid gap-2">
+                    {audioReferences.map((ref, index) => {
+                      const tooLong =
+                        ref.durationSec != null && ref.durationSec > duration + 0.6
+
+                      return (
+                        <div
+                          key={ref.id}
+                          className="grid gap-2 rounded-xl border border-border bg-muted/20 p-3"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-6 shrink-0 items-center rounded-full bg-primary/15 px-2 font-mono text-[10px] font-bold text-primary">
+                              Audio {index + 1}
+                            </span>
+                            <Music className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="min-w-0 flex-1 truncate text-xs" title={ref.file.name}>
+                              {ref.file.name}
+                            </span>
+                            {ref.durationSec != null && (
+                              <span
+                                className={cn(
+                                  'shrink-0 font-mono text-[10px]',
+                                  tooLong ? 'text-orange-500' : 'text-muted-foreground'
+                                )}
+                              >
+                                {ref.durationSec.toFixed(1)}s
+                              </span>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 shrink-0"
+                              onClick={() => removeAudioReference(ref.id)}
+                              aria-label={`ลบ ${ref.file.name}`}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          <audio
+                            src={ref.previewUrl}
+                            controls
+                            preload="metadata"
+                            className="h-8 w-full"
+                          />
+
+                          {tooLong && (
+                            <p className="text-[10px] leading-relaxed text-orange-500">
+                              เสียงยาว {ref.durationSec?.toFixed(1)}s แต่ตั้ง Duration {duration}s —
+                              ปากจะขยับไม่ครบประโยค แนะนำเพิ่ม Duration หรือตัดเสียงให้สั้นลง
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {audioReferences.length < 3 && (
+                      <DropZone
+                        compact
+                        accept="audio/*"
+                        multiple
+                        onFiles={(files) => addAudioReferences(files)}
+                        title="เพิ่มไฟล์เสียงอีก"
+                        hint={`เหลืออีก ${3 - audioReferences.length} ไฟล์`}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* T2V: ไม่ต้องมี reference */}
-            {type === 'T2V' && (
+            {baseType === 'T2V' && (
               <div className="grid gap-3">
                 <label className="text-sm font-medium">Reference files</label>
                 <div className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 p-6 text-center text-xs text-muted-foreground">
@@ -1004,10 +1211,6 @@ export function GenerationForm() {
               >
                 ล้าง prompt
               </Button>
-
-              <span className="text-xs text-muted-foreground" suppressHydrationWarning>
-                Backend URL: {BACKEND_URL}
-              </span>
             </div>
           </form>
         </CardContent>
