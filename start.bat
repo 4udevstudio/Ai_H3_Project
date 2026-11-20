@@ -71,6 +71,11 @@ timeout /t 2 /nobreak >nul
 
 start "H3 Frontend" cmd /k "title H3 Frontend && cd /d "%~dp0" && npm start -- -H 0.0.0.0 -p 3000"
 
+REM ---- Wait for server ready then open browser ----
+echo [BROWSER] รอ 5 วินาทีให้ backend/frontend พร้อม แล้วเปิดเบราว์เซอร์...
+timeout /t 5 /nobreak >nul
+start "" "http://localhost:3000"
+
 echo.
 echo ========================================
 echo   ระบบพร้อมใช้งาน:
