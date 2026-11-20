@@ -607,3 +607,55 @@ def send_frame_to_comfyui(payload: SendFramePayload) -> dict:
     input_dir.mkdir(parents=True, exist_ok=True)
     _fx_shutil.copy2(target, input_dir / target_name)
     return {"stored_filename": target_name}
+
+# ========================================
+# Delete media file (video / thumbnail / frame)
+# ========================================
+class DeleteFileRequest(_BaseModel):
+    """path แบบ relative จาก OUTPUTS_DIR เช่น 'videos/xxx.mp4' """
+    path: str
+
+
+@router.post("/delete", summary="ลบไฟล์สื่อจาก outputs/")
+def delete_media_file(payload: DeleteFileRequest) -> dict:
+    """
+    ลบไฟล์จากโฟลเดอร์ outputs/ (videos / thumbnails / frames)
+
+    Security:
+        - ต้องเป็น path ภายใต้ OUTPUTS_DIR เท่านั้น (กัน traversal)
+        - ลบได้เฉพาะไฟล์ ไม่ลบโฟลเดอร์
+    """
+    from pathlib import Path as _Path
+
+    raw = str(payload.path or "").strip().replace("\\", "/").lstrip("/")
+    if not raw:
+        raise HTTPException(400, detail="path ห้ามว่าง")
+
+    # กัน traversal (../)
+    if ".." in raw.split("/"):
+        raise HTTPException(400, detail="path ไม่ถูกต้อง (พบ ..)")
+
+    target = config.OUTPUTS_DIR / raw
+
+    try:
+        target_resolved = target.resolve()
+        outputs_resolved = config.OUTPUTS_DIR.resolve()
+    except OSError:
+        target_resolved = target.absolute()
+        outputs_resolved = config.OUTPUTS_DIR.absolute()
+
+    if not str(target_resolved).startswith(str(outputs_resolved)):
+        raise HTTPException(400, detail="path อยู่นอก outputs directory")
+
+    if not target_resolved.exists():
+        # ถือว่าลบสำเร็จแล้ว (ไฟล์ไม่มี)
+        return {"deleted": True, "path": raw, "note": "file not found"}
+
+    if not target_resolved.is_file():
+        raise HTTPException(400, detail="path ไม่ใช่ไฟล์")
+
+    try:
+        target_resolved.unlink()
+        return {"deleted": True, "path": raw}
+    except OSError as exc:
+        raise HTTPException(500, detail=f"ลบไฟล์ไม่สำเร็จ: {exc}") from exc

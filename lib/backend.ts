@@ -513,6 +513,25 @@ export interface ConcatVideosResponse {
   mode: 'copy' | 'reencode'
 }
 
+/**
+ * ========================================
+ * Delete Media File API
+ * ========================================
+ * ลบไฟล์วิดีโอ / thumbnail / เฟรม จาก outputs/ ของ backend
+ */
+export async function deleteMediaFile(
+  relativePath: string
+): Promise<{ deleted: boolean; path: string; error?: string }> {
+  return apiFetch<{ deleted: boolean; path: string; error?: string }>(
+    '/api/media/delete',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: relativePath }),
+    }
+  )
+}
+
 export async function concatVideos(
   payload: ConcatVideosPayload,
   timeoutMs = 600000

@@ -277,10 +277,23 @@ export function MediaGallery() {
     setDeletingId(item.id)
     try {
       const res = await fetch(`/api/history/${item.id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        throw new Error(text || `HTTP ${res.status}`)
+      }
+
+      const body = (await res.json().catch(() => ({}))) as {
+        warnings?: string[]
+      }
+
       setItems((p) => p.filter((r) => r.id !== item.id))
       if (expandedVideoId === item.id) setExpandedVideoId(null)
-      toast.success('ลบคลิปแล้ว')
+
+      if (body.warnings && body.warnings.length > 0) {
+        toast.warning(`ลบในประวัติสำเร็จ แต่ไฟล์บางส่วนหาไม่เจอ (อาจถูกลบไปแล้ว)`)
+      } else {
+        toast.success('ลบคลิปถาวรแล้ว (ไฟล์ + ประวัติ)')
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'ลบไม่สำเร็จ')
     } finally {
