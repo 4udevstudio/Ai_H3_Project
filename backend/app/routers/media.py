@@ -611,7 +611,7 @@ def send_frame_to_comfyui(payload: SendFramePayload) -> dict:
 # ========================================
 # Delete media file (video / thumbnail / frame)
 # ========================================
-class DeleteFileRequest(_BaseModel):
+class DeleteFileRequest(_FxBaseModel):
     """path แบบ relative จาก OUTPUTS_DIR เช่น 'videos/xxx.mp4' """
     path: str
 
