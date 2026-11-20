@@ -63,13 +63,13 @@
 
 | ไฟล์ | วางไว้ที่ | ใช้กับ |
 |---|---|---|
-|[minimax_h3_fl2va_pruned_int8_convrot.safetensors] (https://huggingface.co/Comfy-Org/MiniMax-H3/blob/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors) | `models/diffusion_models/` | T2V + FL2VA |
+|[minimax_h3_fl2va_pruned_int8_convrot.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/blob/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors) | `models/diffusion_models/` | T2V + FL2VA |
 |[minimax_h3_ref2va_pruned_int8_convrot.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/blob/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors) | `models/diffusion_models/` | REF2VA |
 |[qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/blob/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors) | `models/text_encoders/` | CLIP ของ H3 |
 |[minimax_h3_video_vae_int8_convrot.safetensors](https://huggingface.co/Kijai/MiniMax-H3-experimental/blob/main/minimax_h3_video_vae_int8_convrot.safetensors) | `models/vae/` | ถอดรหัสภาพ |
 |[minimax_h3_audio_vae_fp32.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/blob/main/vae/minimax_h3_audio_vae_fp32.safetensors) | `models/vae/` | ถอดรหัสเสียง |
 |[pika_h3_flex_fl2va_v1_bf16.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/blob/main/loras/pika_h3_flex_fl2va_v1_bf16.safetensors) | `models/loras/` | LoRA เร่งความเร็ว (FL2VA) |
-| `pika_h3_flex_ref2va_v1_bf16.safetensors` | `models/loras/` | LoRA เร่งความเร็ว (REF2VA) |
+|[pika_h3_flex_ref2va_v1_bf16.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/blob/main/loras/pika_h3_flex_ref2va_v1_bf16.safetensors)| `models/loras/` | LoRA เร่งความเร็ว (REF2VA) |
 | `gemma4_e4b_it_fp8_scaled.safetensors` | `models/text_encoders/` | สร้าง prompt จากรูป (VLM) |
 | `MiniMax-H3-FL2VA-Pruned-Q3_K_M.gguf` | `models/unet/` | T2V + FL2V (Low VRAM) |
 | `MiniMax-H3-Ref2VA-Pruned-Q3_K_M.gguf` | `models/unet/` | REF2V (Low VRAM) |
