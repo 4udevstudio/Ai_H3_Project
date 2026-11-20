@@ -70,12 +70,12 @@
 |[minimax_h3_audio_vae_fp32.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/blob/main/vae/minimax_h3_audio_vae_fp32.safetensors) | `models/vae/` | ถอดรหัสเสียง |
 |[pika_h3_flex_fl2va_v1_bf16.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/blob/main/loras/pika_h3_flex_fl2va_v1_bf16.safetensors) | `models/loras/` | LoRA เร่งความเร็ว (FL2VA) |
 |[pika_h3_flex_ref2va_v1_bf16.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/blob/main/loras/pika_h3_flex_ref2va_v1_bf16.safetensors)| `models/loras/` | LoRA เร่งความเร็ว (REF2VA) |
-| `gemma4_e4b_it_fp8_scaled.safetensors` | `models/text_encoders/` | สร้าง prompt จากรูป (VLM) |
-| `MiniMax-H3-FL2VA-Pruned-Q3_K_M.gguf` | `models/unet/` | T2V + FL2V (Low VRAM) |
-| `MiniMax-H3-Ref2VA-Pruned-Q3_K_M.gguf` | `models/unet/` | REF2V (Low VRAM) |
-| `qwen3vl-32B-MiniMax-H3-Q4_K_M.gguf` | `models/text_encoders/` | CLIP (Low VRAM) |
-| `relayvsr_x2_lightx2v_int8_convrot.safetensors` | `models/diffusion_models/` | UpScale Model |
-| `relayvsr_flash_vae_x2_fp32.safetensors` | `models/vae` | UpScale Model |
+|[gemma4_e4b_it_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/gemma-4/blob/main/text_encoders/gemma4_e4b_it_fp8_scaled.safetensors) | `models/text_encoders/` | สร้าง prompt จากรูป (VLM) |
+|[MiniMax-H3-FL2VA-Pruned-Q3_K_M.gguf](https://huggingface.co/Abiray/MiniMax-H3-Pruned-GGUF/blob/main/MiniMax-H3-FL2VA-Pruned-Q3_K_M.gguf) | `models/unet/` | T2V + FL2V (Low VRAM) |
+|[MiniMax-H3-Ref2VA-Pruned-Q3_K_M.gguf](https://huggingface.co/Abiray/MiniMax-H3-Pruned-GGUF/blob/main/MiniMax-H3-Ref2VA-Pruned-Q3_K_M.gguf) | `models/unet/` | REF2V (Low VRAM) |
+|[qwen3vl-32B-MiniMax-H3-Q4_K_M.gguf](https://huggingface.co/realrebelai/MiniMax-H3_GGUFs/blob/main/qwen3vl-32B-MiniMax-H3-Q4_K_M.gguf)| `models/text_encoders/` | CLIP (Low VRAM) |
+|[relayvsr_x2_lightx2v_int8_convrot.safetensors](https://huggingface.co/Comfy-Org/RelayVSR/blob/main/diffusion_models/relayvsr_x2_lightx2v_int8_convrot.safetensors) | `models/diffusion_models/` | UpScale Model |
+|[relayvsr_flash_vae_x2_fp32.safetensors](https://huggingface.co/Comfy-Org/RelayVSR/blob/main/vae/relayvsr_flash_vae_x2_fp32.safetensors) | `models/vae` | UpScale Model |
 
 ### 1.4 พอร์ตที่ใช้
 
