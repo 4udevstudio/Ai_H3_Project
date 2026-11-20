@@ -63,7 +63,7 @@
 
 | ไฟล์ | วางไว้ที่ | ใช้กับ |
 |---|---|---|
-| `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | `models/diffusion_models/` | T2V + FL2VA |
+|[minimax_h3_fl2va_pruned_int8_convrot.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/blob/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors) | `models/diffusion_models/` | T2V + FL2VA |
 | `minimax_h3_ref2va_pruned_int8_convrot.safetensors` | `models/diffusion_models/` | REF2VA |
 | `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `models/text_encoders/` | CLIP ของ H3 |
 | `minimax_h3_video_vae_int8_convrot.safetensors` | `models/vae/` | ถอดรหัสภาพ |
