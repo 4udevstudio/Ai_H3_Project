@@ -1,8 +1,9 @@
 // ========================================
 // Prisma Schema - MiniMax H3 Studio
-// Database: SQLite (Development)
-// SQLite has no enums. Status, mode, and role columns are String
-// and store UPPERCASE values (DRAFT, T2V, REF, ...).
+// Database: PostgreSQL
+// Status, mode, and role columns stay String (not Postgres enums)
+// and store UPPERCASE values (DRAFT, T2V, REF, ADMIN, ...).
+// JSON payloads stay String/Text so existing readers keep JSON.parse.
 // ========================================
 
 generator client {
@@ -10,8 +11,45 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// ========================================
+// USERS / SESSIONS
+// Auth logic lives on another branch. This schema is the contract.
+// email is always stored lowercased. role is ADMIN or USER.
+// Session.tokenHash is the SHA-256 of the cookie token, never the raw token.
+// ========================================
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String?
+  role         String    @default("USER") // ADMIN, USER
+  disabled     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastLoginAt  DateTime?
+
+  sessions     Session[]
+  projects     Project[]
+  jobs         Job[]
+  finalRenders FinalRender[]
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime?
+  ip         String?
+  userAgent  String?
+
+  @@index([userId])
 }
 
 // ========================================
@@ -38,6 +76,8 @@ model Project {
   audioVolume        Float    @default(1)
   finalPath          String?
   coverPath          String?
+  userId             String?
+  user               User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   generations  Generation[]
   scenes       Scene[]
@@ -48,6 +88,7 @@ model Project {
 
   @@index([createdAt])
   @@index([status])
+  @@index([userId])
 }
 
 // ========================================
@@ -268,6 +309,8 @@ model FinalRender {
   duration      Float?
   error         String?
   jobId         String?
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt     DateTime  @default(now())
   completedAt   DateTime?
 
@@ -276,6 +319,7 @@ model FinalRender {
   @@index([projectId])
   @@index([status])
   @@index([jobId])
+  @@index([userId])
 }
 
 model FinalRenderClip {
@@ -314,14 +358,22 @@ model Job {
   progress      Int      @default(0)
   error         String?
   resultPath    String?
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  batchId       String?
+  nextJobId     String?  @unique
+  nextJob       Job?     @relation("BatchLink", fields: [nextJobId], references: [id], onDelete: SetNull)
+  previousJob   Job?     @relation("BatchLink")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([projectId])
+  @@index([batchId])
   @@index([targetId])
   @@index([backendJobId])
   @@index([status])
   @@index([kind])
+  @@index([userId, status])
 }
 
 // ========================================

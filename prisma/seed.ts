@@ -1,11 +1,39 @@
 import 'dotenv/config'
 
+import bcrypt from 'bcryptjs'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
 const DEMO_TITLE = 'Harbor at Dusk'
 const TEMPLATE_NAME = 'Script breakdown'
+const ADMIN_EMAIL = 'admin@reelfire.local'
+
+/**
+ * Password hashes use bcryptjs with 10 salt rounds (the bcrypt $2a$/$2b$ string).
+ * The auth branch must verify with bcryptjs.compare(password, user.passwordHash)
+ * or any compatible bcrypt implementation. Emails are stored lowercased.
+ */
+async function upsertAdmin() {
+  const email = ADMIN_EMAIL.trim().toLowerCase()
+  const password = process.env.SEED_ADMIN_PASSWORD?.trim() || 'changeme'
+  const passwordHash = await bcrypt.hash(password, 10)
+  return prisma.user.upsert({
+    where: { email },
+    update: {
+      role: 'ADMIN',
+      passwordHash,
+      name: 'ReelFire Admin',
+      disabled: false,
+    },
+    create: {
+      email,
+      passwordHash,
+      name: 'ReelFire Admin',
+      role: 'ADMIN',
+    },
+  })
+}
 
 const SOURCE_TEXT = [
   'At dusk a quiet harbor glows under sodium lamps. Fishing boats knock against the pilings.',
@@ -69,6 +97,7 @@ async function removeDemoFilm() {
 }
 
 async function main() {
+  const admin = await upsertAdmin()
   const templateData = {
     description: 'System prompt for POST /jobs/script-to-scenes. The compute service owns the model call.',
     template: SYSTEM_PROMPT,
@@ -106,6 +135,7 @@ async function main() {
       width: 960,
       height: 544,
       fps: 24,
+      userId: admin.id,
     },
   })
 
@@ -145,6 +175,7 @@ async function main() {
   }
 
   console.log(`Seeded film ${film.id} (${DEMO_TITLE}) with ${SCENES.length} scenes`)
+  console.log(`Admin ${admin.email} (${admin.role}) owns the demo film`)
   console.log(`LLM template "${TEMPLATE_NAME}" is active`)
 }
 

@@ -7,7 +7,7 @@
  */
 const DEFAULT_PUBLIC_URL = 'http://127.0.0.1:8000'
 
-const MEDIA_TYPES = new Set(['videos', 'thumbnails', 'frames', 'films', 'audio'])
+const MEDIA_TYPES = new Set(['videos', 'thumbnails', 'frames', 'films', 'audio', 'references'])
 
 export function publicBackendUrl(): string {
   const fromPublic = (process.env.NEXT_PUBLIC_BACKEND_URL ?? '').trim()

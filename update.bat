@@ -93,13 +93,20 @@ echo.
 REM ---- 7) อัปเดต database schema (ถ้ามี) ----
 echo [4/5] อัปเดต database schema...
 if exist ".env" (
-  call npx prisma generate --quiet
-  call npx prisma db push --quiet
+  call "%~dp0scripts\ensure-postgres.bat"
   if errorlevel 1 (
-    echo [WARNING] prisma มี error - อาจไม่เป็นไรถ้า schema ไม่เปลี่ยน
-  ) else (
-    echo [OK] schema updated
+    echo [ERROR] Postgres is not ready
+    pause
+    exit /b 1
   )
+  call npx prisma generate
+  call npx prisma migrate deploy
+  if errorlevel 1 (
+    echo [ERROR] prisma migrate deploy ล้มเหลว
+    pause
+    exit /b 1
+  )
+  echo [OK] schema updated
 ) else (
   echo [WARNING] ไม่พบ .env - ข้ามขั้นตอน prisma
   echo [!] รัน install.bat อีกครั้งถ้ามีปัญหา

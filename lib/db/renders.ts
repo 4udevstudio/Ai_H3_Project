@@ -2,10 +2,11 @@ import {
   computeFailureMessage,
   computeFailureStatus,
   exportFilm,
-} from '@/lib/compute'
+} from '@/lib/backend-server'
+import { ownerWhere } from '@/lib/request-user'
 import { prisma } from '@/lib/prisma'
 
-import { requireFilm } from './context'
+import { requireFilm, type Actor } from './context'
 import { DbError } from './errors'
 import { serializeJob, serializeRender, type FinalRenderJson, type JobJson } from './serializers'
 
@@ -19,10 +20,10 @@ function exportTransition(value: string): 'none' | 'crossfade' {
   return value.toUpperCase() === 'CROSSFADE' ? 'crossfade' : 'none'
 }
 
-export async function listRenders(filmId: string): Promise<FinalRenderJson[]> {
-  await requireFilm(filmId)
+export async function listRenders(user: Actor, filmId: string): Promise<FinalRenderJson[]> {
+  await requireFilm(user, filmId)
   const renders = await prisma.finalRender.findMany({
-    where: { projectId: filmId },
+    where: { projectId: filmId, ...ownerWhere(user) },
     orderBy: { createdAt: 'desc' },
     include: { clips: { orderBy: { order: 'asc' } } },
   })
@@ -32,8 +33,8 @@ export async function listRenders(filmId: string): Promise<FinalRenderJson[]> {
 /**
  * Build an export from each scene's current clip, in order, using the film transition.
  */
-export async function createRender(filmId: string): Promise<CreateRenderResult> {
-  const film = await requireFilm(filmId)
+export async function createRender(user: Actor, filmId: string): Promise<CreateRenderResult> {
+  const film = await requireFilm(user, filmId)
   const scenes = await prisma.scene.findMany({
     where: { projectId: filmId },
     orderBy: { order: 'asc' },
@@ -61,6 +62,7 @@ export async function createRender(filmId: string): Promise<CreateRenderResult> 
         width: film.width,
         height: film.height,
         fps: film.fps,
+        userId: user?.id ?? null,
         clips: {
           create: scenes.map((scene) => ({
             sceneId: scene.id,
@@ -80,6 +82,7 @@ export async function createRender(filmId: string): Promise<CreateRenderResult> 
         projectId: filmId,
         status: 'QUEUED',
         progress: 0,
+        userId: user?.id ?? null,
       },
     })
 
@@ -111,7 +114,7 @@ export async function createRender(filmId: string): Promise<CreateRenderResult> 
       width: film.width,
       height: film.height,
       fps: film.fps,
-    })
+    }, user)
 
     await prisma.job.update({
       where: { id: created.jobId },

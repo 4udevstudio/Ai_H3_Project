@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
 import { LIMITS, MAX_SCENE_DURATION } from './constants'
-import { requireFilm, requireScene, sceneInclude } from './context'
+import { requireFilm, requireScene, sceneInclude, type Actor } from './context'
 import { parseMode } from './enums'
 import { DbError } from './errors'
 import { asRecord, readBoolean, readNumber, readString } from './parse'
@@ -15,8 +15,8 @@ async function loadScene(id: string): Promise<SceneJson> {
   return serializeScene(scene)
 }
 
-export async function listScenes(filmId: string): Promise<SceneJson[]> {
-  await requireFilm(filmId)
+export async function listScenes(user: Actor, filmId: string): Promise<SceneJson[]> {
+  await requireFilm(user, filmId)
   const scenes = await prisma.scene.findMany({
     where: { projectId: filmId },
     orderBy: { order: 'asc' },
@@ -25,13 +25,13 @@ export async function listScenes(filmId: string): Promise<SceneJson[]> {
   return scenes.map(serializeScene)
 }
 
-export async function getScene(filmId: string, sceneId: string): Promise<SceneJson> {
-  const scene = await requireScene(filmId, sceneId)
+export async function getScene(user: Actor, filmId: string, sceneId: string): Promise<SceneJson> {
+  const scene = await requireScene(user, filmId, sceneId)
   return serializeScene(scene)
 }
 
-export async function createScene(filmId: string, input: unknown): Promise<SceneJson> {
-  await requireFilm(filmId)
+export async function createScene(user: Actor, filmId: string, input: unknown): Promise<SceneJson> {
+  await requireFilm(user, filmId)
   const body = asRecord(input)
   const prompt = readString(body, 'prompt', LIMITS.prompt, true)
   if (!prompt) throw new DbError('prompt is required', 400)
@@ -81,8 +81,8 @@ export async function createScene(filmId: string, input: unknown): Promise<Scene
   return loadScene(createdId)
 }
 
-export async function updateScene(filmId: string, sceneId: string, input: unknown): Promise<SceneJson> {
-  await requireScene(filmId, sceneId)
+export async function updateScene(user: Actor, filmId: string, sceneId: string, input: unknown): Promise<SceneJson> {
+  await requireScene(user, filmId, sceneId)
   const body = asRecord(input)
   const data: Prisma.SceneUpdateInput = {}
 
@@ -120,8 +120,8 @@ export async function updateScene(filmId: string, sceneId: string, input: unknow
   return loadScene(sceneId)
 }
 
-export async function deleteScene(filmId: string, sceneId: string): Promise<{ deleted: true }> {
-  await requireScene(filmId, sceneId)
+export async function deleteScene(user: Actor, filmId: string, sceneId: string): Promise<{ deleted: true }> {
+  await requireScene(user, filmId, sceneId)
 
   await prisma.$transaction(async (tx) => {
     await tx.scene.update({ where: { id: sceneId }, data: { currentGenerationId: null } })
@@ -141,8 +141,56 @@ export async function deleteScene(filmId: string, sceneId: string): Promise<{ de
   return { deleted: true }
 }
 
-export async function reorderScenes(filmId: string, input: unknown): Promise<SceneJson[]> {
-  await requireFilm(filmId)
+/**
+ * Copy the scene settings and its Reference rows into a new DRAFT placed
+ * immediately after the original. The clip, generations, and frame handoff
+ * paths are not copied.
+ */
+export async function duplicateScene(
+  user: Actor,
+  filmId: string,
+  sceneId: string
+): Promise<SceneJson> {
+  const scene = await requireScene(user, filmId, sceneId)
+
+  const createdId = await prisma.$transaction(async (tx) => {
+    await tx.scene.updateMany({
+      where: { projectId: filmId, order: { gt: scene.order } },
+      data: { order: { increment: 1 } },
+    })
+    const created = await tx.scene.create({
+      data: {
+        projectId: filmId,
+        scriptId: scene.scriptId,
+        order: scene.order + 1,
+        title: scene.title,
+        prompt: scene.prompt,
+        negativePrompt: scene.negativePrompt,
+        mode: scene.mode,
+        gguf: scene.gguf,
+        durationSec: scene.durationSec,
+        seed: scene.seed,
+        chainFromPrevious: scene.chainFromPrevious,
+        status: 'DRAFT',
+        images: {
+          create: scene.images.map((image) => ({
+            type: image.type,
+            path: image.path,
+            order: image.order,
+            role: image.role,
+            metadata: image.metadata,
+          })),
+        },
+      },
+    })
+    return created.id
+  })
+
+  return loadScene(createdId)
+}
+
+export async function reorderScenes(user: Actor, filmId: string, input: unknown): Promise<SceneJson[]> {
+  await requireFilm(user, filmId)
   const body = asRecord(input)
   const raw = body.scene_ids
   if (!Array.isArray(raw) || raw.some((id) => typeof id !== 'string' || !id.trim())) {
@@ -169,5 +217,5 @@ export async function reorderScenes(filmId: string, input: unknown): Promise<Sce
     sceneIds.map((id, order) => prisma.scene.update({ where: { id }, data: { order } }))
   )
 
-  return listScenes(filmId)
+  return listScenes(user, filmId)
 }

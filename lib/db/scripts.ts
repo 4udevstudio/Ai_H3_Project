@@ -4,7 +4,7 @@ import {
   computeFailureMessage,
   computeFailureStatus,
   scriptToScenes,
-} from '@/lib/compute'
+} from '@/lib/backend-server'
 
 import {
   DEFAULT_DURATION_SEC,
@@ -13,7 +13,7 @@ import {
   MAX_SCENES,
   MIN_BREAKDOWN_DURATION,
 } from './constants'
-import { requireFilm, sceneInclude } from './context'
+import { requireFilm, sceneInclude, type Actor } from './context'
 import { MODES, type VideoMode } from './enums'
 import { DbError } from './errors'
 import { asRecord, readBoolean, readNumber, readString } from './parse'
@@ -44,8 +44,8 @@ function normalizeBreakdown(items: { prompt: string; mode: string; duration: num
   return breakdown
 }
 
-export async function listScripts(filmId: string): Promise<ScriptJson[]> {
-  await requireFilm(filmId)
+export async function listScripts(user: Actor, filmId: string): Promise<ScriptJson[]> {
+  await requireFilm(user, filmId)
   const scripts = await prisma.script.findMany({
     where: { projectId: filmId },
     orderBy: { createdAt: 'desc' },
@@ -57,8 +57,8 @@ export async function listScripts(filmId: string): Promise<ScriptJson[]> {
  * Store the script, ask the compute service to break it into scenes, and
  * optionally append Scene rows from that breakdown.
  */
-export async function createScript(filmId: string, input: unknown): Promise<CreateScriptResult> {
-  await requireFilm(filmId)
+export async function createScript(user: Actor, filmId: string, input: unknown): Promise<CreateScriptResult> {
+  await requireFilm(user, filmId)
   const body = asRecord(input)
   const sourceText =
     readString(body, 'source_text', LIMITS.script, false) ??
@@ -87,11 +87,14 @@ export async function createScript(filmId: string, input: unknown): Promise<Crea
   })
 
   try {
-    const remote = await scriptToScenes({
-      script: sourceText,
-      ...(maxScenes != null ? { max_scenes: maxScenes } : {}),
-      ...(language ? { language } : {}),
-    })
+    const remote = await scriptToScenes(
+      {
+        script: sourceText,
+        ...(maxScenes != null ? { max_scenes: maxScenes } : {}),
+        ...(language ? { language } : {}),
+      },
+      user
+    )
     const breakdown = normalizeBreakdown(remote)
 
     const saved = await prisma.$transaction(async (tx) => {

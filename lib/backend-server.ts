@@ -1,10 +1,13 @@
 /**
- * Typed client for the stateless FastAPI compute service (feature/backend).
+ * The only server-side client for the stateless FastAPI compute service.
  *
- * Next.js owns SQLite. These calls only enqueue work, split a script, or
- * upload audio. Server-side requests use BACKEND_URL (default
- * http://127.0.0.1:8000). Browser media URLs are built separately.
+ * Requests use BACKEND_URL (default http://127.0.0.1:8000).
+ * When INTERNAL_API_SECRET is set, every call sends X-Internal-Secret.
+ * When an acting user is passed, the call also sends X-User-Id.
+ * Browser media URLs are built separately in lib/files.ts.
  */
+
+export type BackendUser = { id: string } | null | undefined
 
 const DEFAULT_COMPUTE_URL = 'http://127.0.0.1:8000'
 
@@ -115,14 +118,27 @@ function errorMessage(data: { detail?: unknown; error?: unknown }, fallback: str
   return fallback
 }
 
-async function computeFetch<T>(path: string, init: RequestInit | undefined, timeoutMs: number): Promise<T> {
+function withBackendHeaders(init: RequestInit | undefined, user: BackendUser): RequestInit {
+  const headers = new Headers(init?.headers)
+  const secret = (process.env.INTERNAL_API_SECRET ?? '').trim()
+  if (secret) headers.set('X-Internal-Secret', secret)
+  if (user?.id) headers.set('X-User-Id', user.id)
+  return { ...init, headers }
+}
+
+async function computeFetch<T>(
+  path: string,
+  init: RequestInit | undefined,
+  timeoutMs: number,
+  user?: BackendUser
+): Promise<T> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   const url = `${computeBaseUrl()}${path}`
 
   try {
     const response = await fetch(url, {
-      ...init,
+      ...withBackendHeaders(init, user),
       signal: controller.signal,
       cache: 'no-store',
     })
@@ -156,7 +172,10 @@ async function computeFetch<T>(path: string, init: RequestInit | undefined, time
   }
 }
 
-export async function scriptToScenes(input: ScriptToScenesInput): Promise<BreakdownScene[]> {
+export async function scriptToScenes(
+  input: ScriptToScenesInput,
+  user?: BackendUser
+): Promise<BreakdownScene[]> {
   const data = await computeFetch<{ scenes?: unknown }>(
     '/jobs/script-to-scenes',
     {
@@ -164,7 +183,8 @@ export async function scriptToScenes(input: ScriptToScenesInput): Promise<Breakd
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(stripEmpty({ ...input })),
     },
-    SCRIPT_TO_SCENES_TIMEOUT_MS
+    SCRIPT_TO_SCENES_TIMEOUT_MS,
+    user
   )
 
   if (!Array.isArray(data.scenes)) {
@@ -181,7 +201,10 @@ export async function scriptToScenes(input: ScriptToScenesInput): Promise<Breakd
   })
 }
 
-export async function generateScene(input: GenerateSceneInput): Promise<{ job_id: string }> {
+export async function generateScene(
+  input: GenerateSceneInput,
+  user?: BackendUser
+): Promise<{ job_id: string }> {
   const data = await computeFetch<{ job_id?: unknown }>(
     '/jobs/generate-scene',
     {
@@ -189,7 +212,8 @@ export async function generateScene(input: GenerateSceneInput): Promise<{ job_id
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(stripEmpty({ ...input })),
     },
-    30_000
+    30_000,
+    user
   )
   if (typeof data.job_id !== 'string' || !data.job_id.trim()) {
     throw new ComputeRequestError('Compute service response is missing job_id', 502)
@@ -197,7 +221,7 @@ export async function generateScene(input: GenerateSceneInput): Promise<{ job_id
   return { job_id: data.job_id.trim() }
 }
 
-export async function exportFilm(input: ExportInput): Promise<{ job_id: string }> {
+export async function exportFilm(input: ExportInput, user?: BackendUser): Promise<{ job_id: string }> {
   const data = await computeFetch<{ job_id?: unknown }>(
     '/jobs/export',
     {
@@ -205,7 +229,8 @@ export async function exportFilm(input: ExportInput): Promise<{ job_id: string }
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(stripEmpty({ ...input })),
     },
-    30_000
+    30_000,
+    user
   )
   if (typeof data.job_id !== 'string' || !data.job_id.trim()) {
     throw new ComputeRequestError('Compute service response is missing job_id', 502)
@@ -213,17 +238,52 @@ export async function exportFilm(input: ExportInput): Promise<{ job_id: string }
   return { job_id: data.job_id.trim() }
 }
 
-export async function getComputeJob(id: string): Promise<ComputeJobSnapshot> {
-  return computeFetch<ComputeJobSnapshot>(`/jobs/${encodeURIComponent(id)}`, { method: 'GET' }, 15_000)
+export async function getComputeJob(id: string, user?: BackendUser): Promise<ComputeJobSnapshot> {
+  return computeFetch<ComputeJobSnapshot>(
+    `/jobs/${encodeURIComponent(id)}`,
+    { method: 'GET' },
+    15_000,
+    user
+  )
 }
 
-export async function uploadAudio(file: File): Promise<{ audio_path: string }> {
+export interface UploadedReference {
+  path: string
+  type: string
+  stored_filename: string | null
+}
+
+/**
+ * POST /api/uploads/reference (PR #1). Field name is `file`.
+ * Response uploaded[0] has stored_path, stored_filename, and type.
+ * Callers fall back to outputs/references when this route is missing or down.
+ */
+export async function uploadReference(file: File, user?: BackendUser): Promise<UploadedReference> {
+  const body = new FormData()
+  body.append('file', file, file.name || 'reference')
+  const data = await computeFetch<{ uploaded?: Array<Record<string, unknown>> }>(
+    '/api/uploads/reference',
+    { method: 'POST', body },
+    120_000,
+    user
+  )
+  const item = Array.isArray(data.uploaded) ? data.uploaded[0] : undefined
+  const storedPath = item && typeof item.stored_path === 'string' ? item.stored_path.trim() : ''
+  const storedFilename = item && typeof item.stored_filename === 'string' ? item.stored_filename.trim() : ''
+  const type = item && typeof item.type === 'string' && item.type.trim() ? item.type.trim() : 'IMAGE'
+  const path = storedPath || storedFilename
+  if (!path) throw new ComputeRequestError('reference upload response is missing a stored path', 502)
+  return { path, type, stored_filename: storedFilename || null }
+}
+
+export async function uploadAudio(file: File, user?: BackendUser): Promise<{ audio_path: string }> {
   const body = new FormData()
   body.append('file', file, file.name || 'audio.wav')
   const data = await computeFetch<{ audio_path?: unknown }>(
     '/jobs/upload-audio',
     { method: 'POST', body },
-    120_000
+    120_000,
+    user
   )
   if (typeof data.audio_path !== 'string' || !data.audio_path.trim()) {
     throw new ComputeRequestError('Compute service response is missing audio_path', 502)

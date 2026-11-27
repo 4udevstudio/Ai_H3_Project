@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { uploadFilmAudio } from '@/lib/db/films'
 import { DbError } from '@/lib/db/errors'
 import { errorResponse } from '@/lib/db/route'
+import { getRequestUser } from '@/lib/request-user'
 
 type Context = { params: Promise<{ id: string }> }
 
@@ -13,6 +14,7 @@ type Context = { params: Promise<{ id: string }> }
 export async function POST(request: NextRequest, ctx: Context) {
   try {
     const { id } = await ctx.params
+    const user = await getRequestUser(request)
     let form: FormData
     try {
       form = await request.formData()
@@ -23,7 +25,7 @@ export async function POST(request: NextRequest, ctx: Context) {
     const file = form.get('file')
     if (!(file instanceof File)) throw new DbError('file is required', 400)
 
-    const film = await uploadFilmAudio(id, file)
+    const film = await uploadFilmAudio(user, id, file)
     return NextResponse.json(film)
   } catch (error) {
     return errorResponse(error)

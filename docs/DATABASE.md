@@ -1,8 +1,10 @@
-# Film database
+# ReelFire database
 
-Next.js and Prisma own every row in SQLite. FastAPI (`BACKEND_URL`, default `http://127.0.0.1:8000`) is a stateless compute service and never opens the database. The studio history flow is unchanged: the browser still polls FastAPI `GET /api/generations` and posts finished jobs to `POST /api/history`.
+4udevstudio By Firework
 
-SQLite has no enums. Status, mode, and role columns are strings and store **UPPERCASE** values.
+Next.js and Prisma own every row in PostgreSQL. FastAPI (`BACKEND_URL`, default `http://127.0.0.1:8000`) is a stateless compute service and never opens the database. The studio history flow is unchanged: the browser still polls FastAPI `GET /api/generations` and posts finished jobs to `POST /api/history`.
+
+Status, mode, and role columns are strings, not Postgres enums, and store **UPPERCASE** values. JSON payloads (`Script.breakdown`, `Setting.value`, `Reference.metadata`, `Asset.metadata`, `AIPromptEnhancement.referenceImages`) stay text so existing code can keep calling `JSON.parse`.
 
 ## Enum mapping
 
@@ -37,9 +39,36 @@ Examples the compute service returns:
 
 There is no Next.js file route for these. An `http(s)` value already stored in a path column is returned unchanged.
 
+## Auth hook
+
+`lib/request-user.ts` is the only integration point for the auth branch. `getRequestUser(req)` returns `null` today, which means auth is off and every row is visible. Replace that function body with `getCurrentUser()` from `lib/auth` (that file is not in this branch).
+
+`ownerWhere(user)` filters `Project`, `Job`, and `FinalRender`:
+
+- `null` or `ADMIN`: no extra filter
+- `USER`: `userId = user.id`
+
+Scenes and scripts are loaded through a film that already passed that check. New films, jobs, and renders store `userId = user?.id` (`null` while auth is off).
+
+Every FastAPI call goes through `lib/backend-server.ts`. It sends `X-Internal-Secret` when `INTERNAL_API_SECRET` is set, and `X-User-Id` when a user is passed.
+
 ## Models
 
-Existing `Project` and `Generation` columns are unchanged. New columns are nullable or have defaults.
+### User
+
+`id`, `email` unique (stored lowercased), `passwordHash`, `name?`, `role` default `USER` (`ADMIN` or `USER`), `disabled` default false, `createdAt`, `updatedAt`, `lastLoginAt?`.
+
+The seed creates `admin@reelfire.local` with role `ADMIN`. `passwordHash` is **bcryptjs with 10 salt rounds** (a standard `$2a$` / `$2b$` string). The plaintext comes from `SEED_ADMIN_PASSWORD`, falling back to `changeme`. The auth branch should verify with `bcrypt.compare` / `bcryptjs.compare` against that string. Re-seeding rewrites the hash.
+
+### Session
+
+`id`, `userId` (cascade delete), `tokenHash` unique (SHA-256 of the cookie token, never the raw token), `expiresAt`, `createdAt`, `lastSeenAt?`, `ip?`, `userAgent?`. Index on `userId`.
+
+### Ownership
+
+`Project`, `Job`, and `FinalRender` have nullable `userId` (`onDelete: SetNull`). Indexes: `Project(userId)`, `Job(userId, status)`, `FinalRender(userId)`. Null means the row was created before a user was signed in.
+
+Existing `Project` and `Generation` columns are otherwise unchanged. New columns are nullable or have defaults.
 
 ### Project (film)
 
@@ -55,8 +84,9 @@ Existing `Project` and `Generation` columns are unchanged. New columns are nulla
 | `audioVolume` | float, default `1`, range 0–2 |
 | `finalPath` | nullable export output, e.g. `films/<id>.mp4` |
 | `coverPath` | nullable, not included in the Film JSON |
+| `userId` | nullable owner. Null while auth is off |
 
-Relations: `generations`, `scenes`, `scripts`, `finalRenders`, `assets`, `jobs`.
+Relations: `user`, `generations`, `scenes`, `scripts`, `finalRenders`, `assets`, `jobs`.
 
 ### Script
 
@@ -160,6 +190,7 @@ Errors are `{ "error": "...", "detail"?: "..." }` with an HTTP status. Creates r
   "height": 544,
   "fps": 24,
   "audio_url": null,
+  "audio_volume": 1,
   "final_url": null,
   "status": "draft",
   "created_at": "2026-11-27T00:00:00.000Z",
@@ -224,6 +255,20 @@ The array must be exactly the film's scenes, once each. Every `order` is rewritt
 ```
 
 `DELETE` the same path with `{ "image_id": "..." }` or `?image_id=`.
+
+The same POST also accepts `multipart/form-data` with fields `file`, `role`, and `order`. The bytes are forwarded to FastAPI `POST /api/uploads/reference` (field `file`; response `uploaded[0].stored_path`). That path is stored on the Reference row. If the compute service is down or that route returns 404, the file is written to `outputs/references/<uuid>.<ext>` and the stored path is `references/<file>`. Browser URLs for that fallback are `{BACKEND}/api/media/references/<file>`. FastAPI's media allow-list in PR #1 does not include `references` yet, so those fallback URLs 404 until that folder is served. JSON `{path, role, order}` still works.
+
+`POST /api/films/{id}/scenes/{sceneId}/duplicate` copies prompt, mode, gguf, duration, seed, chain flag, title, negative prompt, and image rows into a new `draft` scene inserted immediately after the original. Later `order` values shift by one in the same transaction. The clip, generations, and last-frame fields are not copied. Response is the new Scene, status 201.
+
+`POST /api/films/{id}/generate-all` runs scenes one after another so each can chain the previous last frame.
+
+```json
+{ "scene_ids": ["optional"], "force": false }
+```
+
+Omitted `scene_ids` means every scene, in `order`. `force` defaults to false and skips scenes that already have a DONE clip. Response is `{ "job_ids": ["..."] }` in that scene order. One QUEUED Job is created per scene up front, linked by `batchId` and `nextJobId`. Only the first is sent to FastAPI. `GET /api/jobs/{id}` on **any** id in the batch polls the active job and, when it is `done`, starts the next one, passing the new `lastFramePath` as `first_frame` when `chain_from_previous` is set. If a job fails, every later job in the batch is marked `failed` with error `previous scene failed`. A second batch while one is still `queued` or `running` returns 409.
+
+`GET /api/films/{id}/jobs` returns `{ "jobs": [ Job, ... ] }` newest first and advances the active batch the same way. Job JSON includes `batch_id` (null for a single generate).
 
 `REF` images are sent as `ref_images`. The lowest-order `FIRST` / `LAST` image is used when a chain handoff does not already supply `first_frame`.
 
@@ -328,25 +373,32 @@ Poll `GET /api/jobs/{job.id}` until `done`. The film then has `status: "done"` a
 
 ## Migrations and seed
 
-`prisma/migrations/20261127085458_init` is the schema that was already on `main`. `prisma/migrations/20261127085533_film_database` only adds columns, new tables, and indexes. Table rebuilds copy every existing column. New columns use defaults (`DRAFT`, `960`, `REF`, …).
-
-A fresh database takes both migrations with `npx prisma migrate deploy`.
-
-A database that was created from `main` with `prisma db push` has the old tables and no `_prisma_migrations` history. Prisma will not start migrating a non-empty database until the baseline is recorded. Mark the init migration as already applied, then deploy the film migration:
+There is one Postgres migration, `prisma/migrations/20261127120000_init`. It creates the full schema, including users and sessions. Apply it to an empty database:
 
 ```bash
-npx prisma migrate resolve --applied 20261127085458_init
-npx prisma migrate deploy
-```
-
-That second migration was checked against a copy of the main schema with an existing project, generation, reference, asset, and prompt-enhancement row. Names, prompts, paths, and statuses stayed. New columns came back as `DRAFT`, `960x544`, `24` fps, and `role = REF`.
-
-```bash
+docker compose up -d postgres
 npx prisma generate
 npx prisma migrate deploy
 npx prisma db seed
 ```
 
-The seed is idempotent. It upserts the **Script breakdown** template and replaces the demo film **Harbor at Dusk** (3 ordered scenes plus a script). It does not call FastAPI.
+`DATABASE_URL` in `.env.example` matches `docker-compose.yml`:
+
+`postgresql://reelfire:reelfirepassword@localhost:5432/reelfire?schema=public`
+
+The seed is idempotent. It upserts the **Script breakdown** template, the admin user, and replaces the demo film **Harbor at Dusk** (3 ordered scenes plus a script) owned by that admin. It does not call FastAPI.
 
 `npm run dev` still serves `GET /api/projects`, `GET/POST /api/history`, and `GET /api/health` against the same tables.
+
+## Moving an old SQLite database
+
+`main` stored data in `prisma/dev.db`. Deploy the Postgres schema first, then copy rows in foreign-key order:
+
+```bash
+npx prisma migrate deploy
+npx tsx scripts/migrate-sqlite-to-postgres.ts prisma/dev.db
+```
+
+The script reads SQLite with `node:sqlite` and upserts into `DATABASE_URL`. Columns that did not exist on `main` keep the Postgres defaults (`DRAFT`, 960×544, role `REF`, `userId` null). A database that already has the film tables is copied too, including `currentGenerationId` after generations exist.
+
+Do not use pgloader to create tables here. Prisma owns the schema, and a raw SQLite copy would miss the new NOT NULL columns. The script is the supported path.

@@ -37,6 +37,20 @@ echo   เพื่อนใน LAN:   http://!LAN_IP!:3000
 echo ========================================
 echo.
 
+call "%~dp0scripts\ensure-postgres.bat"
+if errorlevel 1 (
+  echo [ERROR] Postgres is not ready
+  pause
+  exit /b 1
+)
+echo [DB] prisma migrate deploy
+call npx prisma migrate deploy
+if errorlevel 1 (
+  echo [ERROR] prisma migrate deploy ล้มเหลว
+  pause
+  exit /b 1
+)
+
 REM ---- Start Backend ----
 start "H3 Backend" cmd /k "title H3 Backend && cd /d "%~dp0backend" && set PYTHONUNBUFFERED=1 && call venv\Scripts\activate.bat && uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info"
 

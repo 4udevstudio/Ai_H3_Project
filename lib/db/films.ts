@@ -1,26 +1,30 @@
 import type { Prisma } from '@prisma/client'
 
-import { computeFailureMessage, computeFailureStatus, uploadAudio } from '@/lib/compute'
+import { computeFailureMessage, computeFailureStatus, uploadAudio } from '@/lib/backend-server'
+import { ownerWhere } from '@/lib/request-user'
 import { prisma } from '@/lib/prisma'
 
 import { LIMITS, MAX_AUDIO_VOLUME, MAX_FPS, MAX_HEIGHT, MAX_TRANSITION_DURATION, MAX_WIDTH } from './constants'
-import { requireFilm } from './context'
+import { requireFilm, type Actor } from './context'
 import { parseTransition } from './enums'
 import { DbError } from './errors'
 import { asRecord, readNumber, readString } from './parse'
 import { serializeFilm, type FilmJson } from './serializers'
 
-export async function listFilms(): Promise<FilmJson[]> {
-  const films = await prisma.project.findMany({ orderBy: { updatedAt: 'desc' } })
+export async function listFilms(user: Actor): Promise<FilmJson[]> {
+  const films = await prisma.project.findMany({
+    where: ownerWhere(user),
+    orderBy: { updatedAt: 'desc' },
+  })
   return films.map(serializeFilm)
 }
 
-export async function getFilm(id: string): Promise<FilmJson> {
-  const film = await requireFilm(id)
+export async function getFilm(user: Actor, id: string): Promise<FilmJson> {
+  const film = await requireFilm(user, id)
   return serializeFilm(film)
 }
 
-export async function createFilm(input: unknown): Promise<FilmJson> {
+export async function createFilm(user: Actor, input: unknown): Promise<FilmJson> {
   const body = asRecord(input)
   const title = readString(body, 'title', LIMITS.title, true)
   if (!title) throw new DbError('title is required', 400)
@@ -38,6 +42,7 @@ export async function createFilm(input: unknown): Promise<FilmJson> {
     data: {
       name: title,
       theme: 'midnight',
+      userId: user?.id ?? null,
       ...(script !== undefined ? { script } : {}),
       ...(transition !== undefined ? { transitionType: transition } : {}),
       ...(transitionDuration != null ? { transitionDuration } : {}),
@@ -52,8 +57,8 @@ export async function createFilm(input: unknown): Promise<FilmJson> {
   return serializeFilm(film)
 }
 
-export async function updateFilm(id: string, input: unknown): Promise<FilmJson> {
-  await requireFilm(id)
+export async function updateFilm(user: Actor, id: string, input: unknown): Promise<FilmJson> {
+  await requireFilm(user, id)
   const body = asRecord(input)
   const data: Prisma.ProjectUpdateInput = {}
 
@@ -99,8 +104,8 @@ export async function updateFilm(id: string, input: unknown): Promise<FilmJson> 
  * so studio history survives deleting a film. Scenes, scripts, renders,
  * and jobs cascade with the project.
  */
-export async function deleteFilm(id: string): Promise<{ deleted: true }> {
-  await requireFilm(id)
+export async function deleteFilm(user: Actor, id: string): Promise<{ deleted: true }> {
+  await requireFilm(user, id)
 
   await prisma.$transaction(async (tx) => {
     await tx.scene.updateMany({
@@ -121,12 +126,12 @@ export async function deleteFilm(id: string): Promise<{ deleted: true }> {
  * Forward a multipart audio file to POST /jobs/upload-audio and store the
  * returned outputs-relative path on the film.
  */
-export async function uploadFilmAudio(id: string, file: File): Promise<FilmJson> {
-  await requireFilm(id)
+export async function uploadFilmAudio(user: Actor, id: string, file: File): Promise<FilmJson> {
+  await requireFilm(user, id)
   if (!file || file.size <= 0) throw new DbError('file is required', 400)
 
   try {
-    const uploaded = await uploadAudio(file)
+    const uploaded = await uploadAudio(file, user)
     const film = await prisma.project.update({
       where: { id },
       data: { audioPath: uploaded.audio_path },

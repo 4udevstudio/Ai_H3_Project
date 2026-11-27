@@ -2,22 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { createRender, listRenders } from '@/lib/db/renders'
 import { errorResponse } from '@/lib/db/route'
+import { getRequestUser } from '@/lib/request-user'
 
 type Context = { params: Promise<{ id: string }> }
 
-export async function GET(_request: NextRequest, ctx: Context) {
+export async function GET(request: NextRequest, ctx: Context) {
   try {
     const { id } = await ctx.params
-    return NextResponse.json(await listRenders(id))
+    const user = await getRequestUser(request)
+    return NextResponse.json(await listRenders(user, id))
   } catch (error) {
     return errorResponse(error)
   }
 }
 
-export async function POST(_request: NextRequest, ctx: Context) {
+export async function POST(request: NextRequest, ctx: Context) {
   try {
     const { id } = await ctx.params
-    const result = await createRender(id)
+    const user = await getRequestUser(request)
+    const result = await createRender(user, id)
     return NextResponse.json(
       { render: result.render, job: result.job },
       { status: result.httpStatus }

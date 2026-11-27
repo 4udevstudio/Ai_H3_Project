@@ -22,6 +22,7 @@ export interface FilmJson {
   height: number
   fps: number
   audio_url: string | null
+  audio_volume: number
   final_url: string | null
   status: string
   created_at: string
@@ -62,6 +63,7 @@ export interface JobJson {
   progress: number
   error: string | null
   result_url: string | null
+  batch_id: string | null
 }
 
 export interface BreakdownJson {
@@ -125,6 +127,7 @@ export function serializeFilm(project: Project): FilmJson {
     height: project.height,
     fps: project.fps,
     audio_url: toPublicUrl(project.audioPath),
+    audio_volume: project.audioVolume,
     final_url: toPublicUrl(project.finalPath),
     status: toJsonToken(project.status, 'draft'),
     created_at: project.createdAt.toISOString(),
@@ -172,6 +175,7 @@ export function serializeJob(job: Job): JobJson {
     progress: job.progress,
     error: job.error ?? null,
     result_url: toPublicUrl(job.resultPath),
+    batch_id: job.batchId ?? null,
   }
 }
 
