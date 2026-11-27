@@ -1,11 +1,14 @@
 """
 ========================================
-LLM Service (ฉบับร่าง)
+LLM Service (stub)
 ========================================
 Description:
     คลาสจัดการโมเดล Gemma (GGUF ผ่าน llama-cpp-python)
-    ฉบับนี้เป็น stub เก็บสถานะเท่านั้น
-    ฉบับเต็ม (load / unload / generate) จะทำในขั้นถัดไป
+    ฉบับนี้เป็น stub เก็บสถานะเท่านั้น — GET /api/llm/status ยังคืน loaded/model
+
+    Script-to-scenes ไม่ได้ใช้ไฟล์นี้. งานนั้นเรียก ComfyUI Gemma ในเครื่อง
+    (TextGenerateV2 → PreviewAny) ผ่าน app.services.script_scene_service
+    เพื่อไม่ต้องใช้ cloud API key และไม่ต้องโหลด GGUF แยก.
 """
 
 

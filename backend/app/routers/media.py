@@ -29,6 +29,9 @@ router = APIRouter()
 ALLOWED_MEDIA_TYPES = {
     "videos": config.OUTPUTS_DIR / "videos",
     "thumbnails": config.OUTPUTS_DIR / "thumbnails",
+    "frames": config.OUTPUTS_DIR / "frames",
+    "films": config.OUTPUTS_DIR / "films",
+    "audio": config.OUTPUTS_DIR / "audio",
 }
 
 
@@ -52,7 +55,7 @@ def get_media(file_type: str, filename: str) -> FileResponse:
     if file_type not in ALLOWED_MEDIA_TYPES:
         raise HTTPException(
             status_code=400,
-            detail="file_type ต้องเป็น videos หรือ thumbnails เท่านั้น",
+            detail="file_type ต้องเป็น videos, thumbnails, frames, films หรือ audio",
         )
 
     base_dir = ALLOWED_MEDIA_TYPES[file_type].resolve()
@@ -265,154 +268,6 @@ def extract_frame_endpoint(payload: ExtractFramePayload) -> dict:
                 response["warning"] = f"ไม่สามารถ copy รูปเข้า ComfyUI input: {exc}"
 
     return response
-
-# ========================================
-# POST /api/media/extract-frame
-# ดึงเฟรมแรก/สุดท้ายแบบ manual + ปรับ offset ได้
-# ========================================
-import shutil as _fx_shutil
-import uuid as _fx_uuid
-
-from pydantic import BaseModel as _FxBaseModel
-
-from app.core import config as _fx_config
-from app.services import media_processor as _fx_media
-from app.services import comfyui_client as _fx_comfy
-
-
-class ExtractFramePayload(_FxBaseModel):
-    path: str                      # เช่น "videos/xxxx.mp4"
-    position: str = "last"         # "last" | "first"
-    offset_from_end: int = 0       # ถอยหลังกัน motion blur
-    upload_to_comfyui: bool = True # ส่งเข้า input พร้อมใช้เป็น first frame
-
-
-@router.post("/extract-frame", summary="ดึงเฟรมแรก/สุดท้ายของวิดีโอ")
-def extract_frame_endpoint(payload: ExtractFramePayload) -> dict:
-    raw = str(payload.path or "").strip().replace("\\", "/").lstrip("/")
-    rel = _MediaPath(raw)
-
-    if not raw or ".." in rel.parts:
-        raise _MediaHTTPException(400, detail="path ไม่ถูกต้อง")
-    if not rel.parts or rel.parts[0] != "videos":
-        raise _MediaHTTPException(400, detail="รองรับเฉพาะไฟล์ใน videos/ เท่านั้น")
-
-    outputs_root = _media_config.OUTPUTS_DIR.resolve()
-    video_file = (outputs_root / rel).resolve()
-
-    if not video_file.is_relative_to(outputs_root) or not video_file.is_file():
-        raise _MediaHTTPException(404, detail=f"ไม่พบไฟล์วิดีโอ: {raw}")
-
-    position = (payload.position or "last").strip().lower()
-    if position not in {"last", "first"}:
-        raise _MediaHTTPException(400, detail="position ต้องเป็น last หรือ first")
-
-    suffix = f"{position}" if payload.offset_from_end <= 0 else f"{position}_m{payload.offset_from_end}"
-    frame_name = f"{video_file.stem}_{suffix}.jpg"
-    frame_path = outputs_root / "frames" / frame_name
-
-    result = _fx_media.extract_frame(
-        video_path=video_file,
-        destination=frame_path,
-        position=position,
-        offset_from_end=payload.offset_from_end,
-    )
-
-    if not result.get("created"):
-        raise _MediaHTTPException(500, detail=result.get("error") or "ดึงเฟรมไม่สำเร็จ")
-
-    response = {
-        "status": "ok",
-        "frame_path": f"frames/{frame_name}",
-        "position": position,
-        "offset_from_end": payload.offset_from_end,
-        "stored_filename": None,
-    }
-
-    # ส่งเข้า ComfyUI input เพื่อให้ node LoadImage ใช้ต่อได้ทันที
-    if payload.upload_to_comfyui:
-        data = frame_path.read_bytes()
-        target_name = f"chain_{video_file.stem[:8]}_{suffix}_{_fx_uuid.uuid4().hex[:8]}.jpg"
-
-        if _fx_config.COMFYUI_IS_REMOTE:
-            up = _fx_comfy.upload_image_bytes(target_name, data, "image/jpeg")
-            name = up.get("name") or target_name
-            sub = up.get("subfolder") or ""
-            response["stored_filename"] = f"{sub}/{name}" if sub else name
-        else:
-            input_dir = _fx_config.COMFYUI_INPUT_DIR
-            input_dir.mkdir(parents=True, exist_ok=True)
-            _fx_shutil.copy2(frame_path, input_dir / target_name)
-            response["stored_filename"] = target_name
-
-    return response
-
-# ========================================
-# POST /api/media/concat
-# รวมหลายคลิปเป็นไฟล์เดียว + สร้าง thumbnail + duration
-# ========================================
-from datetime import datetime as _fx_datetime
-
-
-class ConcatPayload(_FxBaseModel):
-    paths: list[str]          # เรียงลำดับ เช่น ["videos/a.mp4", "videos/b.mp4"]
-    title: str | None = None  # ชื่อคลิปผลลัพธ์ (ไม่บังคับ)
-
-
-@router.post("/concat", summary="รวมหลายคลิปเป็นไฟล์เดียวด้วย ffmpeg")
-def concat_videos_endpoint(payload: ConcatPayload) -> dict:
-    if not payload.paths or len(payload.paths) < 2:
-        raise _MediaHTTPException(400, detail="ต้องเลือกอย่างน้อย 2 คลิป")
-
-    if len(payload.paths) > 20:
-        raise _MediaHTTPException(400, detail="รวมได้สูงสุด 20 คลิปต่อครั้ง")
-
-    outputs_root = _media_config.OUTPUTS_DIR.resolve()
-    resolved: list = []
-
-    for raw in payload.paths:
-        clean = str(raw or "").strip().replace("\\", "/").lstrip("/")
-        rel = _MediaPath(clean)
-
-        if not clean or ".." in rel.parts or not rel.parts or rel.parts[0] != "videos":
-            raise _MediaHTTPException(400, detail=f"path ไม่ถูกต้อง: {raw}")
-
-        target = (outputs_root / rel).resolve()
-        if not target.is_relative_to(outputs_root) or not target.is_file():
-            raise _MediaHTTPException(404, detail=f"ไม่พบไฟล์วิดีโอ: {raw}")
-
-        resolved.append(target)
-
-    stamp = _fx_datetime.now().strftime("%Y%m%d-%H%M%S")
-    name = f"merged_{stamp}_{_fx_uuid.uuid4().hex[:6]}.mp4"
-    destination = outputs_root / "videos" / name
-
-    result = _fx_media.concat_videos(resolved, destination)
-
-    if not result.get("ok"):
-        raise _MediaHTTPException(500, detail=result.get("error") or "รวมคลิปไม่สำเร็จ")
-
-    # สร้าง thumbnail + อ่าน duration ของไฟล์รวม
-    thumbs_dir = outputs_root / "thumbnails"
-    thumbs_dir.mkdir(parents=True, exist_ok=True)
-    thumb_dest = thumbs_dir / f"{destination.stem}.jpg"
-
-    meta: dict = {}
-    try:
-        meta = _fx_media.process_video_outputs(
-            video_path=destination,
-            thumbnail_path=thumb_dest,
-        ) or {}
-    except Exception as exc:
-        print(f"[media] สร้าง thumbnail สำหรับคลิปรวมไม่สำเร็จ: {exc}")
-
-    return {
-        "status": "ok",
-        "video_path": f"videos/{destination.name}",
-        "thumbnail_path": f"thumbnails/{thumb_dest.name}" if thumb_dest.exists() else None,
-        "duration": meta.get("duration"),
-        "mode": result.get("mode"),
-    }
 
 # ========================================
 # POST /api/media/concat

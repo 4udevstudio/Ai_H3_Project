@@ -11,11 +11,13 @@
 
 - [1. System Requirements](#1-system-requirements)
 - [2. ขั้นตอนการติดตั้ง (Windows)](#2-ขั้นตอนการติดตั้ง-windows)
+- [2.1 Linux and macOS](#21-linux-and-macos)
 - [3. การรันโปรแกรม](#3-การรันโปรแกรม)
 - [4. Feature ที่มีตอนนี้](#4-feature-ที่มีตอนนี้)
 - [โครงสร้างโปรเจค](#โครงสร้างโปรเจค)
 - [แก้ปัญหาเบื้องต้น](#แก้ปัญหาเบื้องต้น)
 - [ข้อจำกัดที่ทราบ](#ข้อจำกัดที่ทราบ)
+- [Short-film compute API (/jobs)](#short-film-compute-api-jobs)
 - [แผนพัฒนาต่อ](#แผนพัฒนาต่อ)
 
 ---
@@ -180,6 +182,34 @@ netsh advfirewall firewall add rule name="H3 Studio API" dir=in action=allow pro
 ```
 
 ✅ ติดตั้งเสร็จแล้ว
+
+---
+
+## 2.1 Linux and macOS
+
+The `.sh` scripts follow the same steps as the Windows `.bat` files. They use `bash`, `set -euo pipefail`, `python3.11` when it exists (otherwise `python3`), a virtualenv at `backend/venv`, and `ffmpeg`/`ffprobe` from `PATH`.
+
+```bash
+chmod +x install.sh start.sh start-fast.sh update.sh backend/run.sh
+./install.sh
+```
+
+`install.sh` checks Node, Python, and ffmpeg, then copies these files only when they are missing:
+
+- `.env` from `.env.example`
+- `backend/.env` from `backend/.env.example`
+- `backend/config.json` from `backend/config.example.json`
+
+Edit `backend/config.json` so `comfyui_root` and `comfyui_input_dir` point at this machine. Leave `ffmpeg_path` empty when ffmpeg is already on `PATH`. Do not commit `.env` or `config.json`.
+
+```bash
+./start.sh        # build Next.js, then FastAPI :8000 and Next :3000
+./start-fast.sh   # skip the rebuild; requires a previous ./start.sh
+./update.sh       # git pull --rebase, npm, pip, prisma, rebuild
+./backend/run.sh  # API only, 127.0.0.1:8000, with --reload
+```
+
+`ffmpeg` install examples: `sudo apt install ffmpeg` or `brew install ffmpeg`.
 
 ---
 
@@ -440,6 +470,112 @@ outputs/
 - **รอยต่อตอนรวมคลิป**: การต่อกันตรง ๆ อาจกระตุกเล็กน้อย — ใช้ FL2VA แบบใส่ทั้ง first+last เพื่อสร้างคลิป transition จะเนียนกว่า crossfade
 - **คิวเป็นแบบทีละงาน**: งานสร้าง prompt ต้องรอคิวหลังงานวิดีโอ (แต่รันเร็วเพราะไม่มี diffusion)
 - **RunPod**: พอร์ต proxy บาง template ไม่รองรับ WebSocket → ระบบสลับไป dùng history polling ให้อัตโนมัติ
+
+---
+
+## Short-film compute API (/jobs)
+
+FastAPI stays a stateless compute service. It does not open the SQLite file. Next.js API routes and Prisma own persistence and the public film endpoints, and they call these routes on the same machine. Paths are relative to the shared `outputs/` directory (`videos/`, `frames/`, `films/`, `audio/`) or an absolute path that already lives under `outputs/` or the ComfyUI input folder.
+
+Default scene size is **960×544 at 24 fps** (ResolutionSelector `0.5 MP`, `16:9 (Widescreen)`, `multiple` 16). H3 workflow `CreateVideo` nodes hardcode 24 fps, so `fps` on `generate-scene` is accepted and not applied. `POST /jobs/export` does honor `width`, `height`, and `fps`.
+
+### LLM path
+
+`POST /jobs/script-to-scenes` uses the local ComfyUI Gemma path (`CLIPLoader` → `TextGenerateV2` → `PreviewAny`, clip `gemma4_e4b_it_fp8_scaled.safetensors`). No cloud API key is read. The workflow is text-only (no `LoadImage`). `backend/app/services/llm_service.py` is still the llama.cpp status stub and is not used for this call. If ComfyUI cannot be reached the route returns **503** `{"error": "..."}`. If the model text is not usable JSON, the script is split on blank lines, or on sentences when there is only one paragraph. The first fallback scene is `T2V`; later scenes are `FL2VA`.
+
+### Frame handoff
+
+`first_frame` is the previous scene's last frame.
+
+- **FL2VA** injects it as LoadImage node **900** (`first_frame` on the image-to-video node). `last_frame` is node **901**. The GGUF FL2VA template has a first-frame image input and no end frame, so `last_frame` is ignored when `gguf` is true.
+- **REF2VA** (`MiniMaxH3ReferenceToVideo`) has reference-image inputs only. There is no start-image socket, so `first_frame` is prepended as reference image 0. That is not a temporal node-900 handoff. `last_frame` is ignored.
+- **T2V** ignores `first_frame`, `last_frame`, and `ref_images`.
+
+`gguf: true` selects the existing low-VRAM workflows `T2V_LOW`, `REF2VA_LOW`, and `FL2VA_LOW`. Scenes share the in-memory FIFO queue and run one at a time. Export uses a separate ffmpeg queue.
+
+### `POST /jobs/script-to-scenes`
+
+Request:
+
+```json
+{"script": "string", "max_scenes": 8, "language": "Thai"}
+```
+
+`max_scenes` defaults to 8 (1–24). `language` is optional.
+
+Response `200`:
+
+```json
+{"scenes": [{"prompt": "string", "mode": "T2V", "duration": 5}]}
+```
+
+`mode` is `T2V`, `REF2VA`, or `FL2VA`. Parsed durations are clamped to 5–15 seconds.
+
+### `POST /jobs/generate-scene`
+
+Request:
+
+```json
+{
+  "prompt": "string",
+  "mode": "FL2VA",
+  "gguf": false,
+  "duration": 5,
+  "seed": -1,
+  "width": 960,
+  "height": 544,
+  "fps": 24,
+  "ref_images": ["frames/hero.jpg"],
+  "first_frame": "frames/prev_last.jpg",
+  "last_frame": null
+}
+```
+
+Response `200`: `{"job_id": "uuid"}`. Errors use `400` `{"error": "..."}`.
+
+### `POST /jobs/export`
+
+Request:
+
+```json
+{
+  "clips": [
+    {"path": "videos/a.mp4", "order": 0, "transition": "none", "transition_duration": 0},
+    {"path": "videos/b.mp4", "order": 1, "transition": "crossfade", "transition_duration": 0.4}
+  ],
+  "audio_path": "audio/bed.wav",
+  "audio_volume": 0.5,
+  "width": 960,
+  "height": 544,
+  "fps": 24
+}
+```
+
+Clips are ordered by `order`. Each boundary uses that clip's `transition` (`none` or `crossfade`). Video is normalized to the requested size, fps, and `yuv420p` before the join. Crossfade uses `xfade`. When every clip has audio, the same boundary also uses `acrossfade`; when any clip has no audio, the join is video-only `xfade`. `audio_path` is optional background audio, looped or trimmed to the film and mixed at `audio_volume` (0–2, default 1). Output is H.264/AAC MP4 under `outputs/films/`.
+
+Response `200`: `{"job_id": "uuid"}`.
+
+### `GET /jobs/{job_id}`
+
+```json
+{
+  "status": "queued",
+  "progress": 0,
+  "error": null,
+  "video_path": null,
+  "video_url": null,
+  "last_frame_path": null,
+  "last_frame_url": null,
+  "output_path": null,
+  "output_url": null
+}
+```
+
+`status` is `queued`, `running`, `done`, or `failed`. `progress` is 0–100. Generation fills `video_*` and `last_frame_*`. Export fills `output_*` and also `video_*` with the same film. URLs are the existing media route, for example `/api/media/videos/{id}.mp4`, `/api/media/frames/{id}_last.jpg`, and `/api/media/films/{id}.mp4`. Unknown ids return `404` `{"error": "job not found"}`.
+
+### `POST /jobs/upload-audio`
+
+Multipart field `file`. Response `200`: `{"audio_path": "audio/<uuid>.wav"}`.
 
 ---
 

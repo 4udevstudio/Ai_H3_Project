@@ -18,7 +18,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core import config
-from app.routers import generations, llm, media, system, uploads, workflows
+from app.routers import generations, jobs, llm, media, system, uploads, workflows
+from app.services.export_service import export_service
 from app.services.llm_service import llm_service
 from app.services.queue_service import queue_service
 
@@ -39,10 +40,11 @@ async def lifespan(app: FastAPI):
             - unload LLM ถ้ามีฟังก์ชัน unload
             - หยุด queue worker
     """
-    (config.OUTPUTS_DIR / "videos").mkdir(parents=True, exist_ok=True)
-    (config.OUTPUTS_DIR / "thumbnails").mkdir(parents=True, exist_ok=True)
+    for folder in ("videos", "thumbnails", "frames", "films", "audio"):
+        (config.OUTPUTS_DIR / folder).mkdir(parents=True, exist_ok=True)
 
     queue_service.start_worker()
+    export_service.start()
 
     watchdog_task = None
     if hasattr(llm_service, "idle_watchdog"):
@@ -65,6 +67,7 @@ async def lifespan(app: FastAPI):
                 # ขณะ shutdown ไม่ควรให้ error มาบล็อกการปิด app
                 pass
 
+        export_service.stop()
         queue_service.stop_worker()
 
 
@@ -97,6 +100,7 @@ app.include_router(llm.router, prefix="/api/llm", tags=["llm"])
 app.include_router(uploads.router, prefix="/api/uploads", tags=["uploads"])
 app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"])
 app.include_router(media.router, prefix="/api/media", tags=["media"])
+app.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
 
 
 @app.get("/", summary="หน้ารากของ backend")
