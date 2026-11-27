@@ -49,10 +49,13 @@ else
   echo "[WARN] backend/venv is missing. Run ./install.sh if the API fails to start."
 fi
 
-echo "[4/5] prisma generate + db push"
+echo "[4/5] prisma migrate deploy"
 if [[ -f .env ]]; then
+  # shellcheck disable=SC1091
+  source "$ROOT/scripts/ensure-postgres.sh"
+  ensure_postgres
   npx prisma generate
-  npx prisma db push
+  npx prisma migrate deploy
 else
   echo "[WARN] .env is missing. Run ./install.sh if Prisma fails."
 fi

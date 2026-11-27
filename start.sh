@@ -54,6 +54,11 @@ echo "  Swagger:  http://${LAN_IP}:8000/docs"
 echo "  ComfyUI must be listening on port 8188"
 echo "========================================"
 
+# shellcheck disable=SC1091
+source "$ROOT/scripts/ensure-postgres.sh"
+ensure_postgres
+npx prisma migrate deploy
+
 echo "[START] FastAPI"
 (
   cd "$ROOT/backend"

@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Start the compose Postgres when DATABASE_URL is unset or the local placeholder.
+# Another postgres:// URL means an external database: skip Docker.
+# Sourced by install.sh, start.sh, start-fast.sh, and update.sh.
+ensure_postgres() {
+  local url="${DATABASE_URL:-}"
+  local placeholder="postgresql://reelfire:reelfirepassword@localhost:5432/reelfire?schema=public"
+
+  if [[ -z "$url" && -f .env ]]; then
+    url="$(grep -E '^DATABASE_URL=' .env | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")"
+  fi
+
+  if [[ -n "$url" && "$url" == postgres* && "$url" != "$placeholder" ]]; then
+    echo "[INFO] DATABASE_URL points at an existing Postgres. Skipping Docker."
+    return 0
+  fi
+
+  if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
+    echo "[ERROR] Docker is required to start reelfire-postgres."
+    echo "        Install Docker, or set DATABASE_URL to an existing Postgres."
+    exit 1
+  fi
+
+  echo "[INFO] Starting reelfire-postgres (docker compose up -d postgres)"
+  docker compose up -d postgres
+
+  local attempt
+  for attempt in $(seq 1 60); do
+    if docker compose exec -T postgres pg_isready -U reelfire -d reelfire >/dev/null 2>&1; then
+      echo "[INFO] Postgres is healthy"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "[ERROR] reelfire-postgres did not become healthy in time."
+  exit 1
+}

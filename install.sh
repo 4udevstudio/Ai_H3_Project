@@ -60,12 +60,17 @@ copy_if_missing "backend/config.json" "backend/config.example.json"
 echo "[!] Edit backend/config.json so comfyui_root and comfyui_input_dir match this machine."
 echo "[!] Leave ffmpeg_path empty when ffmpeg is already on PATH."
 
+# shellcheck disable=SC1091
+source "$ROOT/scripts/ensure-postgres.sh"
+ensure_postgres
+
 echo "[1/4] npm install..."
 npm install
 
-echo "[2/4] prisma generate + db push..."
+echo "[2/4] prisma generate + migrate deploy + seed..."
 npx prisma generate
-npx prisma db push
+npx prisma migrate deploy
+npx prisma db seed
 
 echo "[3/4] npm run build..."
 npm run build

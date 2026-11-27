@@ -38,6 +38,11 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# shellcheck disable=SC1091
+source "$ROOT/scripts/ensure-postgres.sh"
+ensure_postgres
+npx prisma migrate deploy
+
 echo "========================================"
 echo "  ReelFire - fast start"
 echo "  Web: http://localhost:3000"
