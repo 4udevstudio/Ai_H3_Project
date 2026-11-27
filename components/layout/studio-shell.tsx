@@ -12,7 +12,8 @@
  */
 
 import * as React from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Toaster } from 'sonner'
 
 import { QueueHistorySync } from '@/components/layout/queue-history-sync'
@@ -22,15 +23,23 @@ import { cn } from '@/lib/utils'
 
 export function StudioShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const [mobileOpen, setMobileOpen] = React.useState(false)
+  const router = useRouter()
+  const reduceMotion = useReducedMotion()
+  const [openPath, setOpenPath] = React.useState<string | null>(null)
+  const mobileOpen = openPath === pathname
 
-  const close = React.useCallback(() => setMobileOpen(false), [])
-  const open = React.useCallback(() => setMobileOpen(true), [])
-
-  // ปิด drawer ทุกครั้งที่เปลี่ยนหน้า
   React.useEffect(() => {
-    setMobileOpen(false)
-  }, [pathname])
+    function onLoginRequired(event: Event) {
+      const next = (event as CustomEvent<string>).detail || pathname
+      router.push(`/login?next=${encodeURIComponent(next)}`)
+    }
+
+    window.addEventListener('h3-login-required', onLoginRequired)
+    return () => window.removeEventListener('h3-login-required', onLoginRequired)
+  }, [pathname, router])
+
+  const close = React.useCallback(() => setOpenPath(null), [])
+  const open = React.useCallback(() => setOpenPath(pathname), [pathname])
 
   // ปิดด้วย Escape
   React.useEffect(() => {
@@ -45,10 +54,7 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
   }, [mobileOpen, close])
 
   return (
-    <div
-      className="flex h-screen overflow-hidden bg-background text-foreground"
-      style={{ height: '100dvh' }}
-    >
+    <div className="studio-canvas flex min-h-0 flex-1 overflow-hidden text-foreground">
       {/* ===== Sidebar ถาวร (Desktop) ===== */}
       <div className="hidden h-full md:block">
         <Sidebar />
@@ -98,7 +104,17 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
             '[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border'
           )}
         >
-          {children}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={pathname}
+              initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+              transition={{ duration: reduceMotion ? 0 : 0.22, ease: 'easeOut' }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 

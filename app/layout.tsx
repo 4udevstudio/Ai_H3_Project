@@ -8,7 +8,9 @@ import {
 
 import './globals.css'
 
+import { AppFooter } from '@/components/layout/app-footer'
 import { ThemeProvider } from '@/components/themes/theme-provider'
+import { APP_NAME, APP_TAGLINE } from '@/lib/app-config'
 
 const chakra = Chakra_Petch({
   subsets: ['thai', 'latin'],
@@ -32,8 +34,18 @@ const plexMono = IBM_Plex_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Ai-H3-Studio-Generator',
-  description: 'AI Video Generation',
+  title: {
+    default: APP_NAME,
+    template: `%s · ${APP_NAME}`,
+  },
+  description: APP_TAGLINE,
+  applicationName: APP_NAME,
+  openGraph: {
+    title: APP_NAME,
+    description: APP_TAGLINE,
+    siteName: APP_NAME,
+    type: 'website',
+  },
 }
 
 export default function RootLayout({
@@ -82,7 +94,10 @@ export default function RootLayout({
         className={`${chakra.variable} ${plexSans.variable} ${plexMono.variable} antialiased`}
       >
         <ThemeProvider>
-          {children}
+          <div className="flex min-h-dvh flex-col">
+            <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+            <AppFooter />
+          </div>
         </ThemeProvider>
       </body>
     </html>

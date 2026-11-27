@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react'
 
+import { APP_CREDIT, APP_NAME, APP_TAGLINE } from '@/lib/app-config'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
@@ -57,16 +58,16 @@ export function Sidebar({ onClose, onNavigate }: SidebarProps) {
     <aside className="flex h-full w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       {/* Brand */}
       <div className="flex items-center gap-2.5 px-4 py-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-md">
+        <div className="studio-brand-mark flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-primary-foreground">
           <Clapperboard className="h-5 w-5" />
         </div>
 
         <div className="flex min-w-0 flex-col leading-tight">
-          <span className="truncate text-sm font-bold tracking-tight">
-            Ai-H3-Studio-Generator
+          <span className="truncate font-heading text-sm font-bold tracking-tight">
+            {APP_NAME}
           </span>
-          <span className="text-[11px] text-muted-foreground">
-            AI Video Generation
+          <span className="line-clamp-2 text-[11px] text-muted-foreground">
+            {APP_TAGLINE}
           </span>
         </div>
 
@@ -114,17 +115,10 @@ export function Sidebar({ onClose, onNavigate }: SidebarProps) {
 
       {/* เวอร์ชัน */}
       <div className="border-t border-sidebar-border px-4 py-3">
-        <p className="text-[11px] text-muted-foreground">
-          Dev. By{" "}
-          <a
-            href="https://www.facebook.com/tonlikeit"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-foreground transition-colors"
-          >
-            Ton Like IT
-          </a>{" "}
-          ❤️
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          <span className="font-medium text-foreground">{APP_NAME}</span>
+          <span className="mx-1" aria-hidden="true">·</span>
+          {APP_CREDIT}
         </p>
       </div>
     </aside>
