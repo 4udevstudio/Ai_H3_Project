@@ -104,6 +104,7 @@ function seedStore(): Store {
     transition: 'crossfade',
     transition_duration: 0.8,
     audio_url: null,
+    audio_volume: 1,
     final_url: SAMPLE_CLIP,
     status: 'draft',
     scenes: [
@@ -190,6 +191,7 @@ function seedStore(): Store {
     transition: 'none',
     transition_duration: 0.5,
     audio_url: null,
+    audio_volume: 1,
     final_url: null,
     status: 'draft',
     scenes: [],
@@ -369,7 +371,8 @@ function tick(store: Store): void {
         const found = findScene(store, job.scene_id)
         if (found && !found.scene.prompt.trim()) {
           finishSceneJob(found.scene, job)
-          gateOpen = true
+          failLaterScenes(store, jobs, job)
+          gateOpen = false
           continue
         }
       }
@@ -415,7 +418,8 @@ function tick(store: Store): void {
         }
       }
 
-      gateOpen = job.status === 'done' || job.status === 'failed'
+      if (job.status === 'failed') failLaterScenes(store, jobs, job)
+      gateOpen = job.status === 'done'
     }
   }
 
@@ -431,11 +435,31 @@ function findScene(store: Store, sceneId: string): { film: Film; scene: Scene } 
   return null
 }
 
+function failLaterScenes(store: Store, jobs: MockJob[], failed: MockJob): void {
+  if (failed.kind !== 'scene' || failed.status !== 'failed') return
+
+  for (const later of jobs) {
+    if (later.batch_index <= failed.batch_index) continue
+    later.status = 'failed'
+    later.progress = 0
+    later.error = 'previous scene failed'
+    later.result_url = null
+    if (!later.scene_id) continue
+    const found = findScene(store, later.scene_id)
+    if (!found) continue
+    found.scene.status = 'failed'
+    found.scene.clip_url = null
+    found.scene.error = 'previous scene failed'
+    touch(found.scene)
+  }
+}
+
 function jobView(job: MockJob): Job {
   return {
     id: job.id,
     kind: job.kind,
     target_id: job.scene_id ?? job.film_id,
+    batch_id: job.batch,
     status: job.status,
     progress: job.progress,
     error: job.error,
@@ -511,6 +535,7 @@ export function mockCreateFilm(title: string): Film {
       transition: 'none',
       transition_duration: 0.5,
       audio_url: null,
+      audio_volume: 1,
       final_url: null,
       status: 'draft',
     }
@@ -594,9 +619,11 @@ export function mockDeleteScene(filmId: string, sceneId: string): void {
   })
 }
 
-export function mockDuplicateScene(sceneId: string): Scene {
+export function mockDuplicateScene(filmId: string, sceneId: string): Scene {
   return withStore((store) => {
-    const { film, scene } = requireScene(store, sceneId)
+    const film = requireFilm(store, filmId)
+    const scene = sceneList(film).find((item) => item.id === sceneId)
+    if (!scene) throw new FilmsApiError(404, 'ไม่พบฉากนี้')
     reindex(film)
 
     const copy = clone(scene)
@@ -605,7 +632,7 @@ export function mockDuplicateScene(sceneId: string): Scene {
     copy.status = 'draft'
     copy.clip_url = null
     copy.error = null
-    copy.images = scene.images.map((image) => ({ ...image, id: uid('img') }))
+    copy.images = scene.images.map((image) => ({ ...image, id: uid('img'), scene_id: copy.id }))
     touch(copy)
 
     sceneList(film).splice(scene.order + 1, 0, copy)
@@ -693,6 +720,27 @@ export function mockGenerateScene(filmId: string, sceneId: string): Job {
     const job = store.jobs.find((item) => item.id === jobId)
     if (!job) throw new FilmsApiError(500, 'สร้างงานไม่สำเร็จ')
     return jobView(job)
+  })
+}
+
+export function mockGenerateAll(
+  filmId: string,
+  sceneIds: string[],
+  _options?: { force?: boolean }
+): { job_ids: string[] } {
+  return withStore((store) => {
+    const film = requireFilm(store, filmId)
+    const busy = store.jobs.some(
+      (job) =>
+        job.film_id === filmId &&
+        job.kind === 'scene' &&
+        (job.status === 'queued' || job.status === 'running')
+    )
+    if (busy && !_options?.force) {
+      throw new FilmsApiError(409, 'batch already running')
+    }
+    const ids = sceneIds.length > 0 ? sceneIds : sceneList(film).map((scene) => scene.id)
+    return { job_ids: enqueueSceneJobs(store, film, ids) }
   })
 }
 

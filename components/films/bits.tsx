@@ -9,7 +9,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, Clapperboard } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { FILMS_API_MOCK_ENABLED } from '@/lib/films-api'
@@ -99,11 +99,55 @@ export function ClipPlayer({
   )
 }
 
-export function FilmLoading({ label }: { label: string }) {
+export function FilmSkeleton({
+  label = 'กำลังโหลด',
+  variant = 'cards',
+}: {
+  label?: string
+  variant?: 'cards' | 'editor'
+}) {
   return (
-    <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      {label}
+    <div className="grid gap-3 rounded-2xl border border-primary/30 bg-card/50 p-4" aria-busy="true" aria-live="polite">
+      <p className="font-heading text-base font-medium text-foreground">{label}</p>
+      {variant === 'editor' ? (
+        <>
+          <div className="studio-skeleton h-16 rounded-xl" />
+          <div className="studio-skeleton h-56 rounded-xl" />
+          <div className="studio-skeleton h-56 rounded-xl" />
+        </>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="studio-skeleton h-36 rounded-xl" />
+          <div className="studio-skeleton h-36 rounded-xl" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function FilmLoading({ label }: { label: string }) {
+  return <FilmSkeleton label={label} variant="editor" />
+}
+
+export function EmptyState({
+  title,
+  body,
+  action,
+}: {
+  title: string
+  body: string
+  action?: React.ReactNode
+}) {
+  return (
+    <div className="studio-card grid justify-items-center gap-3 rounded-2xl border border-dashed border-primary/30 bg-card/40 px-6 py-14 text-center">
+      <span className="studio-brand-mark flex h-12 w-12 items-center justify-center rounded-2xl text-primary-foreground">
+        <Clapperboard className="h-5 w-5" />
+      </span>
+      <div className="grid gap-1">
+        <p className="font-heading text-base font-semibold">{title}</p>
+        <p className="max-w-sm text-sm text-muted-foreground">{body}</p>
+      </div>
+      {action}
     </div>
   )
 }

@@ -77,7 +77,7 @@ export function TopBar({ onMenuClick, menuOpen }: TopBarProps) {
         : 'กำลังตรวจสอบ...'
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-card/60 px-3 backdrop-blur sm:gap-3 sm:px-5">
+    <header className="studio-topbar flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-3 backdrop-blur sm:gap-3 sm:px-5">
       {/* ซ้าย: ปุ่มเมนู + ชื่อหน้า */}
       <div className="flex min-w-0 items-center gap-2">
         {onMenuClick && (

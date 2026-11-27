@@ -63,6 +63,8 @@ export interface Film {
   /** วินาที 0–5 */
   transition_duration: number
   audio_url?: string | null
+  /** 0–2 ถ้า API ยังไม่ส่งมา ใช้ 1 */
+  audio_volume: number
   final_url?: string | null
   status: FilmStatus
   created_at?: string
@@ -75,12 +77,23 @@ export interface Job {
   id: string
   kind: JobKind
   target_id: string
+  /** มีเมื่องานอยู่ในชุด generate-all */
+  batch_id?: string | null
   status: JobStatus
   /** 0–100 */
   progress: number
   error?: string | null
   /** คลิปของฉาก หรือ MP4 ที่รวมแล้ว ใช้ตามที่ API ให้มา */
   result_url?: string | null
+}
+
+/** ข้อความที่เซิร์ฟเวอร์ใส่เมื่อฉากก่อนในชุดสร้างไม่สำเร็จ */
+export function friendlySceneError(error: string | null | undefined): string | null {
+  if (!error) return null
+  if (error.trim().toLowerCase() === 'previous scene failed') {
+    return 'ฉากก่อนหน้าสร้างไม่สำเร็จ จึงไม่ได้สร้างฉากนี้'
+  }
+  return error
 }
 
 /** ฉากร่างจาก script-to-scenes ยังไม่ถูกบันทึก */
@@ -109,7 +122,7 @@ export interface FilmPatch {
   script?: string | null
   transition?: FilmTransition
   transition_duration?: number
-  /** 0–2 บันทึกได้ แต่ Film JSON ไม่ส่งค่านี้กลับ */
+  /** 0–2 */
   audio_volume?: number
 }
 
@@ -254,6 +267,7 @@ export function normalizeFilm(value: unknown): Film {
     transition: oneOf(raw.transition, FILM_TRANSITIONS, 'none'),
     transition_duration: Number.isFinite(transitionDuration) && transitionDuration >= 0 ? transitionDuration : 0.5,
     audio_url: typeof raw.audio_url === 'string' && raw.audio_url.trim() ? raw.audio_url : null,
+    audio_volume: Number.isFinite(Number(raw.audio_volume)) ? Number(raw.audio_volume) : 1,
     final_url: typeof raw.final_url === 'string' && raw.final_url.trim() ? raw.final_url : null,
     status: oneOf(raw.status, FILM_STATUSES, 'draft'),
     created_at: typeof raw.created_at === 'string' ? raw.created_at : undefined,
@@ -278,6 +292,7 @@ export function normalizeJob(value: unknown): Job {
     id: String(raw.id ?? ''),
     kind: oneOf(raw.kind, JOB_KINDS, 'scene'),
     target_id: String(raw.target_id ?? ''),
+    batch_id: typeof raw.batch_id === 'string' && raw.batch_id.trim() ? raw.batch_id : null,
     status: oneOf(raw.status, JOB_STATUSES, 'queued'),
     progress: Number.isFinite(progress) ? Math.max(0, Math.min(100, progress)) : 0,
     error: typeof raw.error === 'string' && raw.error.trim() ? raw.error : null,

@@ -13,7 +13,7 @@ import { motion } from 'framer-motion'
 import { Clapperboard, Film, Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { FilmError, FilmLoading, MockBanner } from '@/components/films/bits'
+import { EmptyState, FilmError, FilmSkeleton, MockBanner } from '@/components/films/bits'
 import { FilmStatusBadge } from '@/components/films/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -105,7 +105,7 @@ export function FilmList() {
     <div className="mx-auto grid w-full max-w-5xl gap-4">
       <MockBanner />
 
-      <Card className="shadow-lg">
+      <Card className="studio-card shadow-lg">
         <CardHeader className="border-b border-border bg-card/60">
           <CardTitle className="flex items-center gap-3 text-xl">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -141,13 +141,14 @@ export function FilmList() {
         </CardContent>
       </Card>
 
-      {loading ? <FilmLoading label="กำลังโหลดเรื่อง..." /> : null}
+      {loading ? <FilmSkeleton label="กำลังโหลดเรื่อง..." /> : null}
       {error ? <FilmError message={error} onRetry={() => void load()} /> : null}
 
       {!loading && !error && films.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-          ยังไม่มีเรื่อง — ตั้งชื่อด้านบนแล้วกดสร้างเรื่อง
-        </div>
+        <EmptyState
+          title="ยังไม่มีเรื่อง"
+          body="ตั้งชื่อด้านบนแล้วกดสร้างเรื่อง เพื่อเริ่มเรียงฉาก แตกสคริปต์ และรวมเป็นภาพยนตร์"
+        />
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -158,7 +159,7 @@ export function FilmList() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: Math.min(index, 6) * 0.04 }}
           >
-            <Card className="h-full shadow-sm">
+            <Card className="studio-card h-full shadow-sm">
               <CardContent className="grid gap-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">

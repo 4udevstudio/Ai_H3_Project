@@ -31,10 +31,11 @@ export function AssemblyScreen({ filmId }: { filmId: string }) {
   const [exporting, setExporting] = React.useState(false)
   const [jobId, setJobId] = React.useState<string | null>(null)
   const [job, setJob] = React.useState<Job | null>(null)
-  const [volume, setVolume] = React.useState('1')
+  const [volumeDraft, setVolumeDraft] = React.useState<string | null>(null)
   const audioRef = React.useRef<HTMLInputElement>(null)
   const transition = transitionDraft ?? film?.transition ?? 'none'
   const durationText = durationDraft ?? String(film?.transition_duration ?? 0.5)
+  const volume = volumeDraft ?? String(film?.audio_volume ?? 1)
 
   React.useEffect(() => {
     if (!jobId) return
@@ -205,7 +206,7 @@ export function AssemblyScreen({ filmId }: { filmId: string }) {
                 getId={(item) => item.scene.id}
                 onReorder={(next) => void onReorder(next.map((item) => item.scene))}
                 renderItem={(item, index, handle) => (
-                  <div className="flex gap-2 rounded-xl border border-border bg-card p-2 sm:gap-3 sm:p-3">
+                  <div className="studio-card flex gap-2 rounded-xl border border-l-2 border-border border-l-primary/60 bg-card/80 p-2 sm:gap-3 sm:p-3">
                     {handle}
                     <div className="w-28 shrink-0 sm:w-36">
                       <ClipPlayer url={item.scene.clip_url} label={`คลิปฉาก ${index + 1}`} />
@@ -295,11 +296,11 @@ export function AssemblyScreen({ filmId }: { filmId: string }) {
                 <Input
                   inputMode="decimal"
                   value={volume}
-                  onChange={(event) => setVolume(event.target.value)}
+                  onChange={(event) => setVolumeDraft(event.target.value)}
                   onBlur={() => {
                     const next = Number(volume)
                     if (!Number.isFinite(next) || next < 0 || next > 2) {
-                      setVolume('1')
+                      setVolumeDraft(null)
                       return
                     }
                     void updateFilm(filmId, { audio_volume: next }).catch((err: unknown) => {

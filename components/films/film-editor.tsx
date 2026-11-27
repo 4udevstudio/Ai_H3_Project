@@ -12,7 +12,7 @@ import * as React from 'react'
 import { Loader2, Play, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { FilmChrome, FilmError, FilmLoading } from '@/components/films/bits'
+import { EmptyState, FilmChrome, FilmError, FilmLoading } from '@/components/films/bits'
 import { ReorderList } from '@/components/films/reorder-list'
 import { SceneCard, type SceneJobView } from '@/components/films/scene-card'
 import { FilmStatusBadge } from '@/components/films/status-badge'
@@ -20,10 +20,10 @@ import { useFilm } from '@/components/films/use-film'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  addSceneImage,
   createScene,
   deleteScene,
   deleteSceneImage,
+  duplicateScene,
   generateAll,
   generateScene,
   getFilm,
@@ -33,8 +33,8 @@ import {
   updateScene,
   uploadSceneImage,
 } from '@/lib/films-api'
-import { FilmsApiError, filmsErrorMessage } from '@/lib/films-error'
-import { clampUiDuration, mediaPathFromUrl, type Film, type ImageRole, type JobStatus, type Scene, type ScenePatch } from '@/lib/films-types'
+import { filmsErrorMessage } from '@/lib/films-error'
+import type { Film, ImageRole, JobStatus, Scene, ScenePatch } from '@/lib/films-types'
 
 interface TrackedJob {
   jobId: string
@@ -305,26 +305,8 @@ export function FilmEditor({ filmId }: { filmId: string }) {
   }
 
   const onDuplicate = async (sceneId: string) => {
-    const source = scenesOf(film).find((scene) => scene.id === sceneId)
-    if (!source) return
-
     try {
-      const created = await createScene(filmId, {
-        prompt: source.prompt,
-        mode: source.mode,
-        gguf: source.gguf,
-        duration_sec: clampUiDuration(source.duration_sec),
-        seed: source.seed,
-        chain_from_previous: source.chain_from_previous,
-        order: source.order + 1,
-      })
-
-      for (const image of source.images) {
-        const path = mediaPathFromUrl(image.url)
-        if (!path) continue
-        await addSceneImage(filmId, created.id, { path, role: image.role, order: image.order })
-      }
-
+      await duplicateScene(filmId, sceneId)
       await reload()
       toast.success('ทำซ้ำฉากแล้ว')
     } catch (err: unknown) {
@@ -364,9 +346,16 @@ export function FilmEditor({ filmId }: { filmId: string }) {
   }
 
   const onGenerateAll = async () => {
-    const ordered = scenesOf(film).slice().sort((a, b) => a.order - b.order)
-    if (!film || ordered.length === 0) {
+    const ordered = scenesOf(film)
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .filter((scene) => scene.status !== 'done')
+    if (!film || scenesOf(film).length === 0) {
       toast.error('ยังไม่มีฉาก')
+      return
+    }
+    if (ordered.length === 0) {
+      toast.message('ทุกฉากมีคลิปแล้ว')
       return
     }
 
@@ -377,13 +366,8 @@ export function FilmEditor({ filmId }: { filmId: string }) {
         ordered.map((scene) => scene.id)
       )
       rememberJobs(ordered.map((scene, index) => ({ sceneId: scene.id, jobId: jobs[index]?.id ?? '' })))
-      toast.success('เริ่มสร้างทุกฉากตามลำดับ')
+      toast.success('เริ่มสร้างทีละฉากตามลำดับ')
     } catch (err: unknown) {
-      if (err instanceof FilmsApiError && err.status === 429 && err.partialJobs?.length) {
-        rememberJobs(
-          err.partialJobs.map((job) => ({ sceneId: job.target_id, jobId: job.id }))
-        )
-      }
       toast.error(filmsErrorMessage(err, 'สั่งสร้างทั้งหมดไม่สำเร็จ'))
     } finally {
       setGeneratingAll(false)
@@ -455,13 +439,16 @@ export function FilmEditor({ filmId }: { filmId: string }) {
       }
     >
       {scenes.length === 0 ? (
-        <div className="grid justify-items-center gap-3 rounded-xl border border-dashed border-border px-4 py-12 text-center">
-          <p className="text-sm text-muted-foreground">ยังไม่มีฉากในเรื่องนี้</p>
-          <Button type="button" className="h-11" onClick={() => void onAdd()}>
-            <Plus className="h-4 w-4" />
-            เพิ่มฉากแรก
-          </Button>
-        </div>
+        <EmptyState
+          title="ยังไม่มีฉาก"
+          body="เพิ่มฉากแรก หรือไปที่จากสคริปต์เพื่อแตกเรื่องเป็นฉาก"
+          action={
+            <Button type="button" className="h-11" onClick={() => void onAdd()}>
+              <Plus className="h-4 w-4" />
+              เพิ่มฉากแรก
+            </Button>
+          }
+        />
       ) : (
         <ReorderList
           items={scenes}

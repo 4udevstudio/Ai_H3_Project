@@ -276,45 +276,33 @@ export async function addSceneImage(
 }
 
 /**
- * อัปโหลดไฟล์แล้วลงทะเบียนเป็นรูปของฉาก
- * ไบต์ไปที่พร็อกซี same-origin `/api/backend/...` (สาขา auth จะชี้ lib/backend มาทางนี้)
- * ไม่เรียกพอร์ต 8000 หรือ 8188 จากเบราว์เซอร์ แล้วส่ง stored path เข้า POST .../images
+ * อัปโหลดรูปในคำขอเดียว
+ * multipart `file` + `role` + `order` ไปที่ POST .../images
+ * Next ส่งไบต์ต่อฝั่งเซิร์ฟเวอร์ — ไม่ยิง /api/backend และไม่เรียกพอร์ต 8000/8188
  */
-async function uploadReferencePath(file: File): Promise<string> {
-  const body = new FormData()
-  body.append('files', file)
-
-  const data = await requestJson<unknown>(
-    '/api/backend/api/uploads/references',
-    { method: 'POST', body },
-    120000
-  )
-  const record = asRecord(data)
-  const uploaded = Array.isArray(record.uploaded) ? record.uploaded : []
-  const first = asRecord(uploaded[0])
-  const path =
-    typeof first.stored_path === 'string' && first.stored_path.trim()
-      ? first.stored_path
-      : typeof first.stored_filename === 'string'
-        ? first.stored_filename
-        : ''
-
-  if (!path) throw new FilmsApiError(0, 'อัปโหลดรูปไม่สำเร็จ')
-  return path
-}
-
 export async function uploadSceneImage(
   filmId: string,
   sceneId: string,
   file: File,
-  role: ImageRole
+  role: ImageRole,
+  order?: number
 ): Promise<SceneImage> {
   if (FILMS_API_MOCK_ENABLED) {
     return mockCall((mod) => mod.mockUploadImage(filmId, sceneId, file, role))
   }
 
-  const path = await uploadReferencePath(file)
-  return addSceneImage(filmId, sceneId, { path, role })
+  const body = new FormData()
+  body.append('file', file)
+  body.append('role', role)
+  if (order != null) body.append('order', String(order))
+
+  const data = await requestJson<unknown>(
+    scenePath(filmId, sceneId, '/images'),
+    { method: 'POST', body },
+    120000
+  )
+  const image = normalizeScene({ images: [data] }).images[0]
+  return image ?? { id: '', scene_id: sceneId, url: null, role, order: order ?? 0 }
 }
 
 export async function deleteSceneImage(
@@ -341,23 +329,73 @@ export async function generateScene(filmId: string, sceneId: string): Promise<Jo
   return normalizeJob(data)
 }
 
+const BATCH_RUNNING_MESSAGE = 'มีชุดงานกำลังสร้างอยู่แล้ว กรุณารอให้เสร็จก่อน'
+
+function jobsFromIds(sceneIds: string[], ids: string[]): Job[] {
+  return ids.map((id, index) => ({
+    id,
+    kind: 'scene' as const,
+    target_id: sceneIds[index] ?? '',
+    batch_id: null,
+    status: 'queued' as const,
+    progress: 0,
+    error: null,
+    result_url: null,
+  }))
+}
+
 /**
- * ไม่มี route generate-all — สร้างงานทีละฉากตามลำดับที่ให้มา
- * แต่ละ POST คืนทันทีตอนเข้าคิว ไม่รอคลิปเสร็จ
+ * POST /api/films/{id}/generate-all
+ * เซิร์ฟเวอร์สร้างทีละฉากและส่งเฟรมต่อให้ฉากถัดไป
+ * 409 = มีชุดงานที่ยังไม่จบ
  */
-export async function generateAll(filmId: string, sceneIds: string[]): Promise<Job[]> {
-  const jobs: Job[] = []
-  for (const sceneId of sceneIds) {
+export async function generateAll(
+  filmId: string,
+  sceneIds: string[],
+  options?: { force?: boolean }
+): Promise<Job[]> {
+  const payload = {
+    ...(sceneIds.length > 0 ? { scene_ids: sceneIds } : {}),
+    ...(options?.force ? { force: true } : {}),
+  }
+
+  if (FILMS_API_MOCK_ENABLED) {
     try {
-      jobs.push(await generateScene(filmId, sceneId))
+      const data = await mockCall((mod) => mod.mockGenerateAll(filmId, sceneIds, options))
+      return jobsFromIds(sceneIds, data.job_ids)
     } catch (error) {
-      if (error instanceof FilmsApiError && error.status === 429) {
-        error.partialJobs = jobs
+      if (error instanceof FilmsApiError && error.status === 409) {
+        throw new FilmsApiError(409, BATCH_RUNNING_MESSAGE)
       }
       throw error
     }
   }
-  return jobs
+
+  try {
+    const data = await requestJson<{ job_ids?: unknown }>(filmPath(filmId, '/generate-all'), {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify(payload),
+    })
+    const ids = Array.isArray(data.job_ids) ? data.job_ids.map(String) : []
+    return jobsFromIds(sceneIds, ids)
+  } catch (error) {
+    if (error instanceof FilmsApiError && error.status === 409) {
+      throw new FilmsApiError(409, BATCH_RUNNING_MESSAGE)
+    }
+    throw error
+  }
+}
+
+export async function duplicateScene(filmId: string, sceneId: string): Promise<Scene> {
+  if (FILMS_API_MOCK_ENABLED) {
+    return normalizeScene(await mockCall((mod) => mod.mockDuplicateScene(filmId, sceneId)))
+  }
+
+  const data = await requestJson<unknown>(scenePath(filmId, sceneId, '/duplicate'), {
+    method: 'POST',
+  })
+  return normalizeScene(data)
 }
 
 export async function getJob(jobId: string): Promise<Job> {

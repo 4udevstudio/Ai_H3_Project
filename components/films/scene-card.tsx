@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import type { ImageRole, JobStatus, Scene, SceneMode, ScenePatch } from '@/lib/films-types'
-import { clampUiDuration, SCENE_MODES, sceneModeLabel } from '@/lib/films-types'
+import { clampUiDuration, friendlySceneError, SCENE_MODES, sceneModeLabel } from '@/lib/films-types'
 import { cn } from '@/lib/utils'
 
 const ROLE_LABEL: Record<ImageRole, string> = {
@@ -84,7 +84,9 @@ export function SceneCard({
           : 'ใช้เฟรมท้ายของฉากก่อนเป็นเฟรมแรกของฉากนี้'
   const chainDisabled = index === 0 || scene.mode === 'T2V'
   const chainOn = !chainDisabled && scene.chain_from_previous
-  const errorText = scene.status === 'failed' ? scene.error || job?.error : scene.error
+  const errorText = friendlySceneError(
+    scene.status === 'failed' ? scene.error || job?.error : scene.error
+  )
 
   const flushPrompt = () => {
     if (promptTimer.current == null) return
@@ -145,7 +147,7 @@ export function SceneCard({
   }
 
   return (
-    <Card ref={rootRef} className="shadow-sm">
+    <Card ref={rootRef} className="studio-card shadow-sm">
       <CardHeader className="border-b border-border bg-card/60 px-3 py-3">
         <div className="flex w-full flex-wrap items-center gap-2">
           {handle}
