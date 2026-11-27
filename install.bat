@@ -76,8 +76,16 @@ if not exist "backend\config.json" (
   )
 )
 
-REM ---- 5) Frontend: deps + DB + build ----
-echo [1/4] npm install...
+REM ---- 5) Postgres, then frontend deps + DB + build ----
+echo [DB] Starting or checking Postgres...
+call "%~dp0scripts\ensure-postgres.bat"
+if errorlevel 1 (
+  echo [ERROR] Postgres is not ready
+  pause
+  exit /b 1
+)
+
+echo [1/5] npm install...
 call npm install
 if errorlevel 1 (
   echo [ERROR] npm install ล้มเหลว
@@ -85,21 +93,27 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [2/4] prisma generate + db push...
+echo [2/5] prisma generate + migrate deploy + seed...
 call npx prisma generate
 if errorlevel 1 (
   echo [ERROR] prisma generate ล้มเหลว
   pause
   exit /b 1
 )
-call npx prisma db push
+call npx prisma migrate deploy
 if errorlevel 1 (
-  echo [ERROR] prisma db push ล้มเหลว
+  echo [ERROR] prisma migrate deploy ล้มเหลว
+  pause
+  exit /b 1
+)
+call npx prisma db seed
+if errorlevel 1 (
+  echo [ERROR] prisma db seed ล้มเหลว
   pause
   exit /b 1
 )
 
-echo [3/4] npm run build...
+echo [3/5] npm run build...
 call npm run build
 if errorlevel 1 (
   echo [ERROR] npm run build ล้มเหลว
@@ -108,7 +122,7 @@ if errorlevel 1 (
 )
 
 REM ---- 6) Backend: venv + pip ----
-echo [4/4] python venv + pip install...
+echo [4/5] python venv + pip install...
 cd backend
 if not exist "venv" (
   echo [INFO] สร้าง python venv...

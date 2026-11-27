@@ -1,4 +1,6 @@
-# 🎬 Ai-H3-Studio-Generator
+# ReelFire
+
+4udevstudio By Firework
 
 > สตูดิโอสร้างวิดีโอ AI บนเครื่องคุณเอง — รัน MiniMax H3 ผ่าน ComfyUI พร้อมคิวงาน, คลังมีเดีย, ต่อคลิปต่อเนื่อง, รวมคลิป และผู้ช่วยเขียน prompt ด้วย Gemma VLM
 
@@ -50,6 +52,7 @@
 | ซอฟต์แวร์ | เวอร์ชัน | ใช้ทำอะไร | ดาวน์โหลด |
 |---|---|---|---|
 | **Node.js** | 20 LTS ขึ้นไป (แนะนำ 22 LTS) | รันหน้าเว็บ Next.js | https://nodejs.org |
+| **Docker Desktop** | ล่าสุด | รัน PostgreSQL ให้หน้าเว็บ | https://www.docker.com/products/docker-desktop/ |
 | **Python** | **3.11** | รัน FastAPI backend | https://www.python.org/downloads/release/python-3119/ |
 | **Git** | ล่าสุด | clone / อัปเดตโค้ด | https://git-scm.com |
 | **FFmpeg + FFprobe** | 6.x ขึ้นไป | สร้าง thumbnail, อ่านความยาว, ดึงเฟรม, รวมคลิป | https://www.gyan.dev/ffmpeg/builds/ |
@@ -145,11 +148,35 @@ install.bat
 สคริปต์จะทำตามลำดับ:
 
 ```
-[1/4] npm install                 ติดตั้ง dependencies หน้าเว็บ
-[2/4] prisma generate + db push   สร้างฐานข้อมูล SQLite
-[3/4] npm run build               build หน้าเว็บโหมด production
-[4/4] python venv + pip install   สร้าง venv + ติดตั้ง dependencies backend
+[DB]  docker compose up -d postgres   เปิด PostgreSQL แล้วรอจน healthy
+[1/5] npm install                      ติดตั้ง dependencies หน้าเว็บ
+[2/5] prisma migrate deploy + seed     สร้างตาราง Postgres และข้อมูลตัวอย่าง
+[3/5] npm run build                    build หน้าเว็บโหมด production
+[4/5] python venv + pip install        สร้าง venv + ติดตั้ง dependencies backend
 ```
+
+`install.bat` / `start.bat` จะข้าม Docker ถ้าใน `.env` ตั้ง `DATABASE_URL` ไปที่ Postgres เครื่องอื่น (ไม่ใช่ค่าตัวอย่างของ docker compose) ถ้าไม่พบ Docker และยังใช้ค่าตัวอย่าง จะขึ้นข้อความให้ติดตั้ง Docker Desktop หรือชี้ `DATABASE_URL` ไปที่ Postgres ที่มีอยู่แล้ว
+
+ค่าใน `.env.example` สำหรับเครื่องตัวเองเท่านั้น:
+
+```
+DATABASE_URL="postgresql://reelfire:reelfirepassword@127.0.0.1:5432/reelfire?schema=public"
+SEED_ADMIN_PASSWORD=
+INTERNAL_API_SECRET=
+```
+
+Postgres จาก `docker-compose.yml` ฟังเฉพาะ `127.0.0.1:5432` รหัส `reelfirepassword` เป็นค่าเริ่มต้นเมื่อไม่ได้ตั้ง `POSTGRES_PASSWORD` ผู้ใช้ตัวอย่างหลัง seed คือ `admin@reelfire.local` แฮชด้วย bcryptjs 10 rounds ถ้าไม่ตั้ง `SEED_ADMIN_PASSWORD` สคริปต์ seed จะสุ่มรหัสอย่างน้อย 20 ตัว (URL-safe) แล้วพิมพ์ครั้งเดียวให้เก็บไว้ การ seed ซ้ำจะไม่เปลี่ยนรหัสที่มีอยู่แล้ว รายละเอียดตารางอยู่ใน `docs/DATABASE.md`
+
+### ความปลอดภัยก่อนเปิดออกอินเทอร์เน็ต
+
+อย่าใช้รหัสฐานข้อมูลตัวอย่างหรือปล่อย `INTERNAL_API_SECRET` ว่างเมื่อเปิดผ่าน Cloudflare Tunnel หรือเครื่องอื่น
+
+1. สุ่มรหัสยาว เช่น `node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"` สองค่า คนละค่า
+2. ตั้ง `POSTGRES_PASSWORD` เป็นค่าแรกใน environment หรือใน `.env` (Docker Compose อ่านไฟล์นี้ตอน `docker compose up`)
+3. ใส่รหัสเดียวกันใน `DATABASE_URL` แทน `reelfirepassword` โฮสต์ยังเป็น `127.0.0.1`
+4. ตั้ง `INTERNAL_API_SECRET` เป็นค่าที่สอง
+5. ถ้า volume ของ Postgres ถูกสร้างด้วยรหัสเก่าไปแล้ว ให้เข้า container แล้วรัน `ALTER USER reelfire WITH PASSWORD '...'` หรือลบ volume แล้วเริ่มใหม่ (`docker compose down -v` จะลบข้อมูล)
+6. ปล่อย `SEED_ADMIN_PASSWORD` ว่างเพื่อรับรหัสแอดมินแบบสุ่มตอน seed ครั้งแรก หรือตั้งเองให้ยาวอย่างน้อย 12 ตัวก่อน seed ครั้งแรกเท่านั้น
 
 ระหว่างทางจะสร้าง `backend\config.json` จาก `config.example.json` ให้อัตโนมัติ
 
@@ -360,7 +387,7 @@ start.bat
 
 ### 🕘 ประวัติ (History)
 
-- เก็บทุกงานที่เสร็จ/ยกเลิก/ล้มเหลว ลง SQLite ถาวร
+- เก็บทุกงานที่เสร็จ/ยกเลิก/ล้มเหลว ลง PostgreSQL ถาวร
 - ย้ายเข้าโปรเจค · ลบรายการ
 - **ซิงก์อัตโนมัติจากทุกหน้า** — ไม่ต้องเปิดหน้าใดค้างไว้
 - **ซิงก์ย้อนหลัง** — ปิดเว็บตอนงานรัน พอเปิดใหม่จะบันทึกให้เอง
@@ -417,6 +444,8 @@ outputs/
 | อาการ | สาเหตุ / วิธีแก้ |
 |---|---|
 | `start.bat` บอก "ยังไม่ได้ติดตั้ง" | รัน `install.bat` ก่อน |
+| `Docker was not found` | ติดตั้ง Docker Desktop หรือตั้ง `DATABASE_URL` ไปที่ Postgres ที่มีอยู่แล้ว |
+| เว็บขึ้น database disconnected | รอ `docker compose ps` ให้ postgres เป็น healthy แล้วรัน `npx prisma migrate deploy` |
 | เปิดเว็บได้แต่ขึ้น backend ไม่พร้อม | เช็กหน้าต่าง `[H3 Backend]` ว่ามี error · เช็กว่าพอร์ต 8000 ไม่ถูกใช้ซ้ำ |
 | สร้างวิดีโอแล้วค้าง 0% | ComfyUI ไม่ได้เปิด หรือโมเดลไม่ครบ — ดู log ในหน้าต่าง backend |
 | `ไม่พบไฟล์เฟรมใน ComfyUI/input` | ไปหน้าเฟรม → กด "ส่งเข้า ComfyUI" ซ้ำ · ถ้าใช้ RunPod เช็กว่าอัปโหลดผ่าน |
@@ -471,6 +500,6 @@ outputs/
 
 **Frontend** — Next.js 16 · React · TypeScript · Tailwind CSS · shadcn/ui · lucide-react · sonner · Framer Motion
 **Backend** — FastAPI · Uvicorn · Python 3.11
-**Database** — Prisma + SQLite
+**Database** — Prisma + PostgreSQL 16 (`docker compose up -d postgres`)
 **Engine** — ComfyUI · MiniMax H3 (FL2VA / REF2VA) · Pika H3 Flex LoRA · Gemma 4 VLM
 **Media** — FFmpeg / FFprobe

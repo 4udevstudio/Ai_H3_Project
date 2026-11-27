@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:16.15-alpine
+    container_name: reelfire-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: reelfire
+      # Local default only. Set POSTGRES_PASSWORD before any tunneled deploy,
+      # and put the same value in DATABASE_URL.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-reelfirepassword}
+      POSTGRES_DB: reelfire
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - reelfire-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reelfire -d reelfire"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  reelfire-pgdata:

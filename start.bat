@@ -43,6 +43,21 @@ echo       (เลือก Private network)
 echo ========================================
 echo.
 
+REM ---- Postgres must be up before the app reads the database ----
+call "%~dp0scripts\ensure-postgres.bat"
+if errorlevel 1 (
+  echo [ERROR] Postgres is not ready
+  pause
+  exit /b 1
+)
+echo [DB] prisma migrate deploy
+call npx prisma migrate deploy
+if errorlevel 1 (
+  echo [ERROR] prisma migrate deploy ล้มเหลว
+  pause
+  exit /b 1
+)
+
 REM ---- Start Backend ----
 REM PYTHONUNBUFFERED=1 ทำให้ print() แสดง log ทันที (ไม่ buffer)
 start "H3 Backend" cmd /k "title H3 Backend && cd /d "%~dp0backend" && set PYTHONUNBUFFERED=1 && call venv\Scripts\activate.bat && uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info"
