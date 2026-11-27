@@ -157,15 +157,26 @@ install.bat
 
 `install.bat` / `start.bat` จะข้าม Docker ถ้าใน `.env` ตั้ง `DATABASE_URL` ไปที่ Postgres เครื่องอื่น (ไม่ใช่ค่าตัวอย่างของ docker compose) ถ้าไม่พบ Docker และยังใช้ค่าตัวอย่าง จะขึ้นข้อความให้ติดตั้ง Docker Desktop หรือชี้ `DATABASE_URL` ไปที่ Postgres ที่มีอยู่แล้ว
 
-ค่าใน `.env.example` (รหัสนี้เป็น placeholder ให้ตรงกับ `docker-compose.yml` ไม่ใช่ความลับจริง):
+ค่าใน `.env.example` สำหรับเครื่องตัวเองเท่านั้น:
 
 ```
-DATABASE_URL="postgresql://reelfire:reelfirepassword@localhost:5432/reelfire?schema=public"
-SEED_ADMIN_PASSWORD="changeme"
-INTERNAL_API_SECRET="replace-with-a-long-random-string"
+DATABASE_URL="postgresql://reelfire:reelfirepassword@127.0.0.1:5432/reelfire?schema=public"
+SEED_ADMIN_PASSWORD=
+INTERNAL_API_SECRET=
 ```
 
-ผู้ใช้ตัวอย่างหลัง seed คือ `admin@reelfire.local` / `changeme` (แฮชด้วย bcryptjs 10 rounds) รายละเอียดตารางอยู่ใน `docs/DATABASE.md`
+Postgres จาก `docker-compose.yml` ฟังเฉพาะ `127.0.0.1:5432` รหัส `reelfirepassword` เป็นค่าเริ่มต้นเมื่อไม่ได้ตั้ง `POSTGRES_PASSWORD` ผู้ใช้ตัวอย่างหลัง seed คือ `admin@reelfire.local` แฮชด้วย bcryptjs 10 rounds ถ้าไม่ตั้ง `SEED_ADMIN_PASSWORD` สคริปต์ seed จะสุ่มรหัสอย่างน้อย 20 ตัว (URL-safe) แล้วพิมพ์ครั้งเดียวให้เก็บไว้ การ seed ซ้ำจะไม่เปลี่ยนรหัสที่มีอยู่แล้ว รายละเอียดตารางอยู่ใน `docs/DATABASE.md`
+
+### ความปลอดภัยก่อนเปิดออกอินเทอร์เน็ต
+
+อย่าใช้รหัสฐานข้อมูลตัวอย่างหรือปล่อย `INTERNAL_API_SECRET` ว่างเมื่อเปิดผ่าน Cloudflare Tunnel หรือเครื่องอื่น
+
+1. สุ่มรหัสยาว เช่น `node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"` สองค่า คนละค่า
+2. ตั้ง `POSTGRES_PASSWORD` เป็นค่าแรกใน environment หรือใน `.env` (Docker Compose อ่านไฟล์นี้ตอน `docker compose up`)
+3. ใส่รหัสเดียวกันใน `DATABASE_URL` แทน `reelfirepassword` โฮสต์ยังเป็น `127.0.0.1`
+4. ตั้ง `INTERNAL_API_SECRET` เป็นค่าที่สอง
+5. ถ้า volume ของ Postgres ถูกสร้างด้วยรหัสเก่าไปแล้ว ให้เข้า container แล้วรัน `ALTER USER reelfire WITH PASSWORD '...'` หรือลบ volume แล้วเริ่มใหม่ (`docker compose down -v` จะลบข้อมูล)
+6. ปล่อย `SEED_ADMIN_PASSWORD` ว่างเพื่อรับรหัสแอดมินแบบสุ่มตอน seed ครั้งแรก หรือตั้งเองให้ยาวอย่างน้อย 12 ตัวก่อน seed ครั้งแรกเท่านั้น
 
 ระหว่างทางจะสร้าง `backend\config.json` จาก `config.example.json` ให้อัตโนมัติ
 

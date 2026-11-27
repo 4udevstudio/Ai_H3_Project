@@ -1,5 +1,7 @@
 import 'dotenv/config'
 
+import { randomBytes } from 'crypto'
+
 import bcrypt from 'bcryptjs'
 import { PrismaClient } from '@prisma/client'
 
@@ -9,30 +11,61 @@ const DEMO_TITLE = 'Harbor at Dusk'
 const TEMPLATE_NAME = 'Script breakdown'
 const ADMIN_EMAIL = 'admin@reelfire.local'
 
+const MIN_ADMIN_PASSWORD_LENGTH = 12
+
 /**
  * Password hashes use bcryptjs with 10 salt rounds (the bcrypt $2a$/$2b$ string).
  * The auth branch must verify with bcryptjs.compare(password, user.passwordHash)
  * or any compatible bcrypt implementation. Emails are stored lowercased.
+ *
+ * An existing admin keeps their passwordHash. A new admin uses SEED_ADMIN_PASSWORD
+ * when it is set (at least 12 characters). When it is unset, a random URL-safe
+ * password is generated and printed once.
  */
+function configuredAdminPassword(): string | null {
+  const raw = process.env.SEED_ADMIN_PASSWORD
+  const password = typeof raw === 'string' ? raw.trim() : ''
+  if (!password) return null
+  if (password.length < MIN_ADMIN_PASSWORD_LENGTH) {
+    throw new Error(
+      `SEED_ADMIN_PASSWORD must be at least ${MIN_ADMIN_PASSWORD_LENGTH} characters.`
+    )
+  }
+  return password
+}
+
 async function upsertAdmin() {
   const email = ADMIN_EMAIL.trim().toLowerCase()
-  const password = process.env.SEED_ADMIN_PASSWORD?.trim() || 'changeme'
+  const configured = configuredAdminPassword()
+  const existing = await prisma.user.findUnique({ where: { email } })
+  if (existing) {
+    return prisma.user.update({
+      where: { email },
+      data: {
+        role: 'ADMIN',
+        name: 'ReelFire Admin',
+        disabled: false,
+      },
+    })
+  }
+
+  const generated = configured === null
+  const password = configured ?? randomBytes(24).toString('base64url')
   const passwordHash = await bcrypt.hash(password, 10)
-  return prisma.user.upsert({
-    where: { email },
-    update: {
-      role: 'ADMIN',
-      passwordHash,
-      name: 'ReelFire Admin',
-      disabled: false,
-    },
-    create: {
+  const created = await prisma.user.create({
+    data: {
       email,
       passwordHash,
       name: 'ReelFire Admin',
       role: 'ADMIN',
     },
   })
+  if (generated) {
+    console.log(
+      `Save this admin password now. It will not be shown again: ${password}`
+    )
+  }
+  return created
 }
 
 const SOURCE_TEXT = [

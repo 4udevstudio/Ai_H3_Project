@@ -3,7 +3,7 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0.."
 
 REM Skip Docker when .env points at a Postgres other than the bundled compose database.
-set "DEFAULT_URL=postgresql://reelfire:reelfirepassword@localhost:5432/reelfire?schema=public"
+set "DEFAULT_URL=postgresql://reelfire:reelfirepassword@127.0.0.1:5432/reelfire?schema=public"
 set "DBURL="
 if exist ".env" (
   for /f "usebackq tokens=1* delims==" %%A in (".env") do (

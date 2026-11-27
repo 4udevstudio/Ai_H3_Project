@@ -58,7 +58,7 @@ Every FastAPI call goes through `lib/backend-server.ts`. It sends `X-Internal-Se
 
 `id`, `email` unique (stored lowercased), `passwordHash`, `name?`, `role` default `USER` (`ADMIN` or `USER`), `disabled` default false, `createdAt`, `updatedAt`, `lastLoginAt?`.
 
-The seed creates `admin@reelfire.local` with role `ADMIN`. `passwordHash` is **bcryptjs with 10 salt rounds** (a standard `$2a$` / `$2b$` string). The plaintext comes from `SEED_ADMIN_PASSWORD`, falling back to `changeme`. The auth branch should verify with `bcrypt.compare` / `bcryptjs.compare` against that string. Re-seeding rewrites the hash.
+The seed creates `admin@reelfire.local` with role `ADMIN` only when that user does not exist. `passwordHash` is **bcryptjs with 10 salt rounds** (a standard `$2a$` / `$2b$` string). The auth branch should verify with `bcrypt.compare` / `bcryptjs.compare`. If `SEED_ADMIN_PASSWORD` is set it must be at least 12 characters. If it is empty, the seed generates a URL-safe password from `crypto.randomBytes(24)` and prints it once. Re-seeding does not change an existing `passwordHash`.
 
 ### Session
 
@@ -384,7 +384,9 @@ npx prisma db seed
 
 `DATABASE_URL` in `.env.example` matches `docker-compose.yml`:
 
-`postgresql://reelfire:reelfirepassword@localhost:5432/reelfire?schema=public`
+`postgresql://reelfire:reelfirepassword@127.0.0.1:5432/reelfire?schema=public`
+
+That password is the local default only (`POSTGRES_PASSWORD` in Compose, otherwise `reelfirepassword`). Postgres is published on `127.0.0.1:5432` and is not reachable from other machines. Change `POSTGRES_PASSWORD` and the password inside `DATABASE_URL` together, and set `INTERNAL_API_SECRET`, before a Cloudflare Tunnel or any other non-local deploy. Leave `SEED_ADMIN_PASSWORD` empty unless you want to choose the first admin password yourself.
 
 The seed is idempotent. It upserts the **Script breakdown** template, the admin user, and replaces the demo film **Harbor at Dusk** (3 ordered scenes plus a script) owned by that admin. It does not call FastAPI.
 

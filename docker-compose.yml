@@ -5,10 +5,12 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: reelfire
-      POSTGRES_PASSWORD: reelfirepassword
+      # Local default only. Set POSTGRES_PASSWORD before any tunneled deploy,
+      # and put the same value in DATABASE_URL.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-reelfirepassword}
       POSTGRES_DB: reelfire
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - reelfire-pgdata:/var/lib/postgresql/data
     healthcheck:
