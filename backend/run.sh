@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# ReelFire API. systemd unit name: reelfire-backend
 # Activate the backend venv and run uvicorn on 127.0.0.1:8000 with reload.
 set -euo pipefail
 

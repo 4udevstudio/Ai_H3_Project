@@ -66,7 +66,7 @@ def _wait_job(client, job_id: str, timeout: float = 40.0) -> dict:
 def test_existing_routes_still_registered(api):
     root = api.get("/")
     assert root.status_code == 200
-    assert root.json()["service"] == "MiniMax H3 Studio Backend"
+    assert root.json()["service"] == "ReelFire API"
 
     health = api.get("/api/llm/status")
     assert health.status_code == 200

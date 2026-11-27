@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
 echo "========================================"
-echo "  Ai-H3-Studio-Generator - Update"
+echo "  ReelFire - Update"
 echo "========================================"
 
 if [[ ! -d .git ]]; then

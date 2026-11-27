@@ -73,8 +73,8 @@ async def lifespan(app: FastAPI):
 
 # สร้าง FastAPI app หลัก
 app = FastAPI(
-    title="MiniMax H3 Studio Backend",
-    description="Backend สำหรับสร้างวิดีโอ AI ในเครื่อง (MiniMax H3 + ComfyUI engine)",
+    title="ReelFire API",
+    description="ReelFire compute API (4udevstudio By Firework). MiniMax H3 + ComfyUI. Based on Ai-H3-Studio-Generator by Ton (MIT).",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -107,7 +107,7 @@ app.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
 def root():
     """คืนข้อมูลพื้นฐานของ backend ใช้เช็คว่าบริการรันอยู่"""
     return {
-        "service": "MiniMax H3 Studio Backend",
+        "service": "ReelFire API",
         "version": "0.1.0",
         "docs": "/docs",
         "engine": "comfyui-ref2va",

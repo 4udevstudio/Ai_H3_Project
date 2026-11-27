@@ -1,8 +1,12 @@
-# 🎬 Ai-H3-Studio-Generator
+# ReelFire
+
+**4udevstudio By Firework**
 
 > สตูดิโอสร้างวิดีโอ AI บนเครื่องคุณเอง — รัน MiniMax H3 ผ่าน ComfyUI พร้อมคิวงาน, คลังมีเดีย, ต่อคลิปต่อเนื่อง, รวมคลิป และผู้ช่วยเขียน prompt ด้วย Gemma VLM
 
 ใช้งานผ่านเว็บเบราว์เซอร์ รองรับทั้ง **เครื่องเดียว**, **หลายเครื่องในวง LAN**, **มือถือ/แท็บเล็ต** และสลับไปใช้ **GPU บน RunPod** ได้จากหน้า Settings
+
+Based on [Ai-H3-Studio-Generator](https://github.com/tontheonelove/Ai-H3-Studio-Generator) by Ton (MIT). The upstream `LICENSE` is unchanged.
 
 
 ---
@@ -210,6 +214,8 @@ Edit `backend/config.json` so `comfyui_root` and `comfyui_input_dir` point at th
 ```
 
 `ffmpeg` install examples: `sudo apt install ffmpeg` or `brew install ffmpeg`.
+
+A systemd unit for the API can be named `reelfire-backend` (for example `reelfire-backend.service`), running uvicorn from `backend/venv` on `127.0.0.1:8000`. ComfyUI should be started with `--listen 127.0.0.1`.
 
 ---
 
@@ -594,6 +600,10 @@ Multipart field `file`. Response `200`: `{"audio_path": "audio/<uuid>.wav"}`.
 ---
 
 ## ผู้พัฒนา
+
+**ReelFire** — 4udevstudio By Firework
+
+Based on **Ai-H3-Studio-Generator** by Ton (MIT). Upstream author credits:
 
 **TonLikeIT** — Full Stack Developer & AI Enthusiast
 
