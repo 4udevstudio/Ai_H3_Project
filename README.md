@@ -217,6 +217,8 @@ Edit `backend/config.json` so `comfyui_root` and `comfyui_input_dir` point at th
 
 A systemd unit for the API can be named `reelfire-backend` (for example `reelfire-backend.service`), running uvicorn from `backend/venv` on `127.0.0.1:8000`. ComfyUI should be started with `--listen 127.0.0.1`.
 
+Publishing the site to the internet: [docs/cloudflare-tunnel.th.md](docs/cloudflare-tunnel.th.md). The example tunnel only exposes `reelfire.example.com` → `http://localhost:3000`.
+
 ---
 
 ## 3. การรันโปรแกรม

@@ -1,0 +1,15 @@
+# ReelFire — Cloudflare Tunnel example.
+# 4udevstudio By Firework.
+# Copy this file to the machine that runs cloudflared and replace the
+# placeholders. Do not commit a real tunnel id, hostname, or credentials file.
+#
+# Only the Next.js site is published. FastAPI (:8000) and ComfyUI (:8188)
+# stay on 127.0.0.1 and are not listed here.
+
+tunnel: <TUNNEL_ID>
+credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: reelfire.example.com
+    service: http://localhost:3000
+  - service: http_status:404
