@@ -1,6 +1,6 @@
 @echo off
 rem ========================================
-rem สคริปต์เปิดตัว backend MiniMax H3 Studio
+rem ReelFire API (reelfire-backend). 4udevstudio By Firework.
 rem Description: activate venv แล้วรัน uvicorn ที่ port 8000
 rem ========================================
 cd /d %~dp0

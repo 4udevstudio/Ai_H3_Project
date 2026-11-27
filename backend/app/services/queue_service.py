@@ -64,6 +64,7 @@ class QueueJob:
     audio_reference_names: list[str] = field(default_factory=list)
     first_frame_name: Optional[str] = None
     last_frame_name: Optional[str] = None
+    last_frame_path: Optional[str] = None
     error: Optional[str] = None
     created_at: datetime = field(default_factory=utc_now)
     updated_at: datetime = field(default_factory=utc_now)

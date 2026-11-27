@@ -1,12 +1,12 @@
 @echo off
 setlocal EnableDelayedExpansion
-title Ai-H3-Studio-Generator - Update - By Ton Like IT
+title ReelFire - Update - 4udevstudio By Firework
 cd /d "%~dp0"
 
 chcp 65001 >nul 2>nul
 
 echo ========================================
-echo   Ai-H3-Studio-Generator - Updater - By Ton Like IT
+echo   ReelFire - Updater - 4udevstudio By Firework
 echo ========================================
 echo.
 
