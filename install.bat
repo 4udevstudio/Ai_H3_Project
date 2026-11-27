@@ -1,13 +1,13 @@
 @echo off
 setlocal EnableDelayedExpansion
-title Ai-H3-Studio-Generator - Install - By Ton Like IT
+title ReelFire - Install - 4udevstudio By Firework
 cd /d "%~dp0"
 
 REM ---- เปิด UTF-8 เพื่อแสดงภาษาไทยใน CMD Windows ----
 chcp 65001 >nul 2>nul
 
 echo ========================================
-echo   Ai-H3-Studio-Generator - Installer - By Ton Like IT
+echo   ReelFire - Installer - 4udevstudio By Firework
 echo ========================================
 echo.
 

@@ -46,7 +46,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "========================================"
-echo "  MiniMax H3 Studio"
+echo "  ReelFire"
 echo "  Web:      http://localhost:3000"
 echo "  LAN:      http://${LAN_IP}:3000"
 echo "  Backend:  http://${LAN_IP}:8000"

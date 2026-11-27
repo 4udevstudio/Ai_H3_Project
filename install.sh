@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ai-H3-Studio-Generator installer for Linux and macOS.
+# ReelFire installer for Linux and macOS. 4udevstudio By Firework.
 # Mirrors install.bat: Node, Python, ffmpeg, env files, npm, Prisma, venv.
 set -euo pipefail
 
@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
 echo "========================================"
-echo "  Ai-H3-Studio-Generator - Install"
+echo "  ReelFire - Install"
 echo "========================================"
 
 if ! command -v node >/dev/null 2>&1; then

@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableDelayedExpansion
-title MiniMax H3 Studio - Start
+title ReelFire - Start
 cd /d "%~dp0"
 
 REM ---- Pre-flight check ----
@@ -29,7 +29,7 @@ for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "try { (Get-Ne
 if "!LAN_IP!"=="" set "LAN_IP=127.0.0.1"
 
 echo ========================================
-echo   MiniMax H3 Studio
+echo   ReelFire
 echo ----------------------------------------
 echo   เครื่องนี้:      http://localhost:3000
 echo   เพื่อนใน LAN:   http://!LAN_IP!:3000

@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableDelayedExpansion
-title MiniMax H3 Studio - Fast Start (No Build)
+title ReelFire - Fast Start (No Build)
 cd /d "%~dp0"
 
 REM ---- Pre-flight check ----
@@ -29,7 +29,7 @@ for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "try { (Get-Ne
 if "!LAN_IP!"=="" set "LAN_IP=127.0.0.1"
 
 echo ========================================
-echo   MiniMax H3 Studio - FAST MODE
+echo   ReelFire - FAST MODE
 echo   (ข้าม build - ใช้โค้ดล่าสุดที่ build ไว้)
 echo ----------------------------------------
 echo   เครื่องนี้:      http://localhost:3000
