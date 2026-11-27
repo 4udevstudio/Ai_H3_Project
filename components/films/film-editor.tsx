@@ -33,7 +33,7 @@ import {
   updateScene,
   uploadSceneImage,
 } from '@/lib/films-api'
-import { filmsErrorMessage } from '@/lib/films-error'
+import { FilmsApiError, filmsErrorMessage } from '@/lib/films-error'
 import { clampUiDuration, mediaPathFromUrl, type Film, type ImageRole, type JobStatus, type Scene, type ScenePatch } from '@/lib/films-types'
 
 interface TrackedJob {
@@ -379,6 +379,11 @@ export function FilmEditor({ filmId }: { filmId: string }) {
       rememberJobs(ordered.map((scene, index) => ({ sceneId: scene.id, jobId: jobs[index]?.id ?? '' })))
       toast.success('เริ่มสร้างทุกฉากตามลำดับ')
     } catch (err: unknown) {
+      if (err instanceof FilmsApiError && err.status === 429 && err.partialJobs?.length) {
+        rememberJobs(
+          err.partialJobs.map((job) => ({ sceneId: job.target_id, jobId: job.id }))
+        )
+      }
       toast.error(filmsErrorMessage(err, 'สั่งสร้างทั้งหมดไม่สำเร็จ'))
     } finally {
       setGeneratingAll(false)

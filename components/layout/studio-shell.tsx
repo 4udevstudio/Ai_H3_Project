@@ -12,7 +12,7 @@
  */
 
 import * as React from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Toaster } from 'sonner'
 
 import { QueueHistorySync } from '@/components/layout/queue-history-sync'
@@ -22,15 +22,22 @@ import { cn } from '@/lib/utils'
 
 export function StudioShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const [mobileOpen, setMobileOpen] = React.useState(false)
+  const router = useRouter()
+  const [openPath, setOpenPath] = React.useState<string | null>(null)
+  const mobileOpen = openPath === pathname
 
-  const close = React.useCallback(() => setMobileOpen(false), [])
-  const open = React.useCallback(() => setMobileOpen(true), [])
-
-  // ปิด drawer ทุกครั้งที่เปลี่ยนหน้า
   React.useEffect(() => {
-    setMobileOpen(false)
-  }, [pathname])
+    function onLoginRequired(event: Event) {
+      const next = (event as CustomEvent<string>).detail || pathname
+      router.push(`/login?next=${encodeURIComponent(next)}`)
+    }
+
+    window.addEventListener('h3-login-required', onLoginRequired)
+    return () => window.removeEventListener('h3-login-required', onLoginRequired)
+  }, [pathname, router])
+
+  const close = React.useCallback(() => setOpenPath(null), [])
+  const open = React.useCallback(() => setOpenPath(pathname), [pathname])
 
   // ปิดด้วย Escape
   React.useEffect(() => {

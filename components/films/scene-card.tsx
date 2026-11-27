@@ -147,16 +147,17 @@ export function SceneCard({
   return (
     <Card ref={rootRef} className="shadow-sm">
       <CardHeader className="border-b border-border bg-card/60 px-3 py-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2">
           {handle}
-          <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 font-mono text-xs font-bold text-primary">
               {index + 1}
             </span>
-            <span className="truncate font-heading text-base font-medium">ฉาก {index + 1}</span>
+            <span className="whitespace-nowrap font-heading text-base font-medium">ฉาก {index + 1}</span>
           </div>
           <SceneStatusBadge status={scene.status} progress={job?.progress} />
-          <div className="flex flex-wrap gap-1">
+        </div>
+        <div className="flex flex-wrap gap-1">
             <Button
               type="button"
               variant="outline"
@@ -198,7 +199,6 @@ export function SceneCard({
                 <Trash2 className="h-4 w-4" />
               </Button>
             )}
-          </div>
         </div>
       </CardHeader>
 
@@ -213,7 +213,7 @@ export function SceneCard({
             )
           ) : null}
           {errorText ? (
-            <p role="alert" className="flex gap-2 rounded-lg bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
+            <p className="flex gap-2 rounded-lg bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>{errorText}</span>
             </p>

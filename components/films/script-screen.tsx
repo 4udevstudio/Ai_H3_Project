@@ -184,7 +184,7 @@ export function ScriptScreen({ filmId }: { filmId: string }) {
             disabled={breaking}
           />
 
-          <div className="grid gap-3 sm:grid-cols-[8rem_10rem_1fr] sm:items-end">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(12rem,1fr)_minmax(10rem,1fr)_auto] sm:items-end">
             <label className="grid gap-1.5">
               <FieldLabel hint="ว่าง = 8">จำนวนฉากสูงสุด</FieldLabel>
               <Input

@@ -7,12 +7,20 @@
 
 export class FilmsApiError extends Error {
   readonly status: number
+  /** งานที่สร้างได้ก่อนโดน 429 ระหว่าง generate-all */
+  partialJobs?: Array<{ id: string; target_id: string }>
 
   constructor(status: number, message: string) {
     super(message)
     this.name = 'FilmsApiError'
     this.status = status
   }
+}
+
+export function jobLimitMessage(active: number, limit: number): string {
+  const activeText = Number.isFinite(active) ? String(active) : '?'
+  const limitText = Number.isFinite(limit) ? String(limit) : '?'
+  return `คุณมีงานที่กำลังทำอยู่ ${activeText}/${limitText} งาน กรุณารอให้เสร็จก่อน`
 }
 
 export function filmsErrorMessage(error: unknown, fallback: string): string {

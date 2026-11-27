@@ -12,8 +12,7 @@
  *   NEXT_PUBLIC_FILMS_API_MOCK=1
  */
 
-import { uploadReferenceFiles } from '@/lib/backend'
-import { FilmsApiError } from '@/lib/films-error'
+import { FilmsApiError, jobLimitMessage } from '@/lib/films-error'
 import {
   normalizeFilm,
   normalizeFilmList,
@@ -57,17 +56,7 @@ async function requestJson<T>(path: string, init?: RequestInit, timeoutMs = 3000
     })
 
     if (!response.ok) {
-      let message = `คำขอไม่สำเร็จ (HTTP ${response.status})`
-
-      try {
-        const data = (await response.json()) as { error?: unknown; detail?: unknown }
-        if (typeof data.error === 'string' && data.error.trim()) message = data.error
-        else if (typeof data.detail === 'string' && data.detail.trim()) message = data.detail
-      } catch {
-        // body ไม่ใช่ JSON
-      }
-
-      throw new FilmsApiError(response.status, message)
+      throw await toApiError(response)
     }
 
     if (response.status === 204) return undefined as T
@@ -87,6 +76,50 @@ async function requestJson<T>(path: string, init?: RequestInit, timeoutMs = 3000
   } finally {
     clearTimeout(timeoutId)
   }
+}
+
+function redirectToLogin(): void {
+  if (typeof window === 'undefined') return
+  if (window.location.pathname === '/login') return
+  const next = `${window.location.pathname}${window.location.search}`
+  window.dispatchEvent(new CustomEvent('h3-login-required', { detail: next }))
+}
+
+async function toApiError(response: Response): Promise<FilmsApiError> {
+  let message = `คำขอไม่สำเร็จ (HTTP ${response.status})`
+  let code = ''
+  let active = Number.NaN
+  let limit = Number.NaN
+
+  try {
+    const data = (await response.json()) as {
+      error?: unknown
+      detail?: unknown
+      active?: unknown
+      limit?: unknown
+    }
+    if (typeof data.error === 'string' && data.error.trim()) {
+      code = data.error.trim()
+      message = code
+    } else if (typeof data.detail === 'string' && data.detail.trim()) {
+      message = data.detail
+    }
+    active = Number(data.active)
+    limit = Number(data.limit)
+  } catch {
+    // body ไม่ใช่ JSON
+  }
+
+  if (response.status === 401) {
+    redirectToLogin()
+    return new FilmsApiError(401, 'กรุณาเข้าสู่ระบบ')
+  }
+
+  if (response.status === 429 && code === 'job_limit') {
+    return new FilmsApiError(429, jobLimitMessage(active, limit))
+  }
+
+  return new FilmsApiError(response.status, message)
 }
 
 async function mockCall<T>(
@@ -244,9 +277,32 @@ export async function addSceneImage(
 
 /**
  * อัปโหลดไฟล์แล้วลงทะเบียนเป็นรูปของฉาก
- * ไบต์ไปที่อัปโหลด reference เดิมของ FastAPI (เส้นทางเดียวกับโหมดคิวเดิม)
- * แล้วส่ง stored path เข้า POST .../images
+ * ไบต์ไปที่พร็อกซี same-origin `/api/backend/...` (สาขา auth จะชี้ lib/backend มาทางนี้)
+ * ไม่เรียกพอร์ต 8000 หรือ 8188 จากเบราว์เซอร์ แล้วส่ง stored path เข้า POST .../images
  */
+async function uploadReferencePath(file: File): Promise<string> {
+  const body = new FormData()
+  body.append('files', file)
+
+  const data = await requestJson<unknown>(
+    '/api/backend/api/uploads/references',
+    { method: 'POST', body },
+    120000
+  )
+  const record = asRecord(data)
+  const uploaded = Array.isArray(record.uploaded) ? record.uploaded : []
+  const first = asRecord(uploaded[0])
+  const path =
+    typeof first.stored_path === 'string' && first.stored_path.trim()
+      ? first.stored_path
+      : typeof first.stored_filename === 'string'
+        ? first.stored_filename
+        : ''
+
+  if (!path) throw new FilmsApiError(0, 'อัปโหลดรูปไม่สำเร็จ')
+  return path
+}
+
 export async function uploadSceneImage(
   filmId: string,
   sceneId: string,
@@ -257,11 +313,7 @@ export async function uploadSceneImage(
     return mockCall((mod) => mod.mockUploadImage(filmId, sceneId, file, role))
   }
 
-  const uploaded = await uploadReferenceFiles([file])
-  const stored = uploaded[0]
-  const path = stored?.stored_path || stored?.stored_filename
-  if (!path) throw new FilmsApiError(0, 'อัปโหลดรูปไม่สำเร็จ')
-
+  const path = await uploadReferencePath(file)
   return addSceneImage(filmId, sceneId, { path, role })
 }
 
@@ -296,7 +348,14 @@ export async function generateScene(filmId: string, sceneId: string): Promise<Jo
 export async function generateAll(filmId: string, sceneIds: string[]): Promise<Job[]> {
   const jobs: Job[] = []
   for (const sceneId of sceneIds) {
-    jobs.push(await generateScene(filmId, sceneId))
+    try {
+      jobs.push(await generateScene(filmId, sceneId))
+    } catch (error) {
+      if (error instanceof FilmsApiError && error.status === 429) {
+        error.partialJobs = jobs
+      }
+      throw error
+    }
   }
   return jobs
 }

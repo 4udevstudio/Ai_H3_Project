@@ -186,7 +186,7 @@ export function AssemblyScreen({ filmId }: { filmId: string }) {
       title={<h2 className="truncate font-heading text-xl font-semibold">{film.title}</h2>}
       meta={
         <p className="text-xs text-muted-foreground">
-          เรียงคลิปให้ตรงลำดับฉาก แล้วส่งออกเป็น MP4 · ความยาวโดยประมาณ {formatClock(totalDuration)}
+          เรียงคลิปให้ตรงลำดับฉาก แล้วส่งออกเป็น MP4 · ความยาวไทม์ไลน์ {formatClock(totalDuration)}
         </p>
       }
     >
