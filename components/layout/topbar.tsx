@@ -31,6 +31,14 @@ const PAGE_TITLES: Record<string, string> = {
   '/settings': 'ตั้งค่า',
 }
 
+function pageTitle(pathname: string): string {
+  if (pathname === '/shortfilm/classic') return 'สร้างหนังสั้น (คิวเดิม)'
+  if (/^\/shortfilm\/[^/]+\/script\/?$/.test(pathname)) return 'แตกฉากจากสคริปต์'
+  if (/^\/shortfilm\/[^/]+\/assembly\/?$/.test(pathname)) return 'รวมคลิป'
+  if (pathname.startsWith('/shortfilm/')) return 'แก้ไขหนังสั้น'
+  return PAGE_TITLES[pathname] ?? 'Studio'
+}
+
 type HealthState = 'checking' | 'ok' | 'down'
 
 interface TopBarProps {
@@ -40,7 +48,7 @@ interface TopBarProps {
 
 export function TopBar({ onMenuClick, menuOpen }: TopBarProps) {
   const pathname = usePathname()
-  const title = PAGE_TITLES[pathname] ?? 'Studio'
+  const title = pageTitle(pathname)
 
   const [health, setHealth] = React.useState<HealthState>('checking')
 
