@@ -1,6 +1,8 @@
 // ========================================
 // Prisma Schema - MiniMax H3 Studio
 // Database: SQLite (Development)
+// SQLite has no enums. Status, mode, and role columns are String
+// and store UPPERCASE values (DRAFT, T2V, REF, ...).
 // ========================================
 
 generator client {
@@ -14,6 +16,8 @@ datasource db {
 
 // ========================================
 // PROJECTS - กลุ่มของ videos/projects
+// A Project is also a Film. New columns are nullable or defaulted
+// so rows created before the film layer stay valid.
 // ========================================
 model Project {
   id          String   @id @default(cuid())
@@ -22,80 +26,177 @@ model Project {
   theme       String   @default("midnight")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  generations Generation[]
-  
+
+  script             String?
+  status             String   @default("DRAFT") // DRAFT, GENERATING, ASSEMBLING, DONE, FAILED
+  transitionType     String   @default("NONE") // NONE, CROSSFADE
+  transitionDuration Float    @default(0.5)
+  width              Int      @default(960)
+  height             Int      @default(544)
+  fps                Int      @default(24)
+  audioPath          String?
+  audioVolume        Float    @default(1)
+  finalPath          String?
+  coverPath          String?
+
+  generations  Generation[]
+  scenes       Scene[]
+  scripts      Script[]
+  finalRenders FinalRender[]
+  assets       Asset[]
+  jobs         Job[]
+
   @@index([createdAt])
+  @@index([status])
+}
+
+// ========================================
+// SCRIPTS - source text and scene breakdown for a film
+// breakdown is a JSON string of [{prompt, mode, duration}]
+// ========================================
+model Script {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title      String?
+  sourceText String
+  breakdown  String   @default("[]")
+  llmModel   String?
+  status     String   @default("DRAFT") // DRAFT, BREAKING_DOWN, DONE, FAILED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  scenes Scene[]
+
+  @@index([projectId])
+  @@index([status])
+}
+
+// ========================================
+// SCENES - ordered shots that belong to a film
+// `order` is 0-based and indexed, not unique, so a reorder can
+// rewrite every row in one transaction without colliding.
+// ========================================
+model Scene {
+  id                  String   @id @default(cuid())
+  projectId           String
+  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scriptId            String?
+  script              Script?  @relation(fields: [scriptId], references: [id], onDelete: SetNull)
+  order               Int
+  title               String?
+  prompt              String
+  negativePrompt      String?
+  mode                String   @default("T2V") // T2V, REF2VA, FL2VA
+  gguf                Boolean  @default(false)
+  durationSec         Float    @default(5)
+  seed                Int?
+  status              String   @default("DRAFT") // DRAFT, QUEUED, RUNNING, DONE, FAILED
+  error               String?
+  chainFromPrevious   Boolean  @default(true)
+  inputFramePath      String?
+  lastFramePath       String?
+  clipPath            String?
+  currentGenerationId String?  @unique
+  currentGeneration   Generation? @relation("SceneCurrentGeneration", fields: [currentGenerationId], references: [id], onDelete: SetNull)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  generations      Generation[]         @relation("SceneGenerations")
+  images           Reference[]
+  finalRenderClips FinalRenderClip[]
+  enhancements     AIPromptEnhancement[]
+
+  @@index([projectId, order])
+  @@index([scriptId])
+  @@index([status])
 }
 
 // ========================================
 // GENERATIONS - ประวัติการ generate ทั้งหมด
+// Existing columns are unchanged. sceneId is nullable so history
+// rows that are not part of a film keep working.
 // ========================================
 model Generation {
   id               String    @id @default(cuid())
   projectId        String?
   project          Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
+  sceneId          String?
+  scene            Scene?    @relation("SceneGenerations", fields: [sceneId], references: [id], onDelete: SetNull)
+
   // Generation type
   type             String    @default("TEXT2VID") // TEXT2VID, IMG2VID, REF2VID, FL2VA
-  
+
   // Prompt information
   prompt           String
   negativePrompt   String?
   seed             Int       @default(-1)
   steps            Int       @default(6)
   resolution       String    @default("768p")
-  
+
   // Pika H3 Flex specific
   taskAdapter      String?   // "fl2va", "ref2va"
   loraUsed         String?   // "pika-h3-flex", "turbo"
 
   lastFramePath    String?
-  
+
   // AI Enhancement
   useAIEnhancement Boolean   @default(false)
-  
+
   // Results
   videoPath        String?
   audioPath        String?
   thumbnailPath    String?
   duration         Float?
-  
-  // Status
-  status           String    @default("PENDING") // PENDING, RUNNING, DONE, FAILED, CANCELLED
+
+  // Status — existing vocabulary: PENDING, RUNNING, DONE, FAILED, CANCELLED
+  status           String    @default("PENDING")
   error            String?
-  
+
   // Metadata
   generationTime   Float?
   vramUsed         Float?
-  
+
   createdAt        DateTime  @default(now())
   completedAt      DateTime?
-  
+
   references       Reference[]
   enhancement      AIPromptEnhancement?
-  
+  currentForScene  Scene?              @relation("SceneCurrentGeneration")
+  finalRenderClips FinalRenderClip[]
+  job              Job?
+
   @@index([projectId])
+  @@index([sceneId])
   @@index([status])
   @@index([createdAt])
 }
 
 // ========================================
 // REFERENCES - รูปภาพ/วิดีโออ้างอิง
+// Also used as SceneImage. generationId is optional so a still
+// can belong to a scene without a generation attempt.
 // ========================================
 model Reference {
-  id            String     @id @default(cuid())
-  generationId  String
-  generation    Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
-  
+  id            String      @id @default(cuid())
+  generationId  String?
+  generation    Generation? @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  sceneId       String?
+  scene         Scene?      @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  assetId       String?
+  asset         Asset?      @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
   type          String     // IMAGE, VIDEO, AUDIO
   path          String
   order         Int
+  role          String?    @default("REF") // REF, FIRST, LAST
   metadata      String?    // JSON string สำหรับ metadata เพิ่มเติม
-  
+
   createdAt     DateTime   @default(now())
-  
+
   @@index([generationId])
+  @@index([sceneId])
+  @@index([assetId])
   @@index([type])
 }
 
@@ -109,10 +210,14 @@ model Asset {
   type      String   // IMAGE, VIDEO, AUDIO, MODEL
   size      Int
   metadata  String?  // JSON string
-  
-  createdAt DateTime @default(now())
-  
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  createdAt  DateTime    @default(now())
+  references Reference[]
+
   @@index([type])
+  @@index([projectId])
   @@unique([path])
 }
 
@@ -120,25 +225,103 @@ model Asset {
 // AI PROMPT ENHANCEMENT - ประวัติการใช้ LLM
 // ========================================
 model AIPromptEnhancement {
-  id               String     @id @default(cuid())
-  generationId     String?    @unique
+  id               String      @id @default(cuid())
+  generationId     String?     @unique
   generation       Generation? @relation(fields: [generationId], references: [id], onDelete: Cascade)
-  
+  sceneId          String?
+  scene            Scene?      @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+
   // Input
   referenceImages  String     // JSON array of image paths
   basePrompt       String
   customPrompt     String?
-  
+
   // Output
   enhancedPrompt   String
   fullPrompt       String
-  
+
   // LLM Info
   modelUsed        String     @default("gemma-4b-it")
   tokensUsed       Int?
   responseTime     Float?
-  
+
   createdAt        DateTime   @default(now())
+
+  @@index([sceneId])
+}
+
+// ========================================
+// FINAL RENDERS - export history for a film
+// jobId stores this app's Job.id. The compute id lives on Job.backendJobId.
+// ========================================
+model FinalRender {
+  id            String    @id @default(cuid())
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status        String    @default("PENDING") // PENDING, RUNNING, DONE, FAILED
+  audioPath     String?
+  audioVolume   Float     @default(1)
+  width         Int       @default(960)
+  height        Int       @default(544)
+  fps           Int       @default(24)
+  outputPath    String?
+  duration      Float?
+  error         String?
+  jobId         String?
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  clips FinalRenderClip[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([jobId])
+}
+
+model FinalRenderClip {
+  id                 String      @id @default(cuid())
+  finalRenderId      String
+  finalRender        FinalRender @relation(fields: [finalRenderId], references: [id], onDelete: Cascade)
+  sceneId            String
+  scene              Scene       @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  generationId       String?
+  generation         Generation? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+  order              Int
+  transitionType     String      @default("NONE") // NONE, CROSSFADE
+  transitionDuration Float       @default(0.5)
+
+  @@index([finalRenderId, order])
+  @@index([sceneId])
+  @@index([generationId])
+}
+
+// ========================================
+// JOBS - persistence-side handle for a compute job
+// FastAPI stays stateless. This row is what GET /api/jobs/[id] returns.
+// ========================================
+model Job {
+  id            String   @id @default(cuid())
+  kind          String // SCENE, EXPORT
+  targetId      String
+  projectId     String?
+  project       Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  backendJobId  String?
+  // Which Generation attempt this SCENE job should update.
+  // Export jobs leave this null. Nullable so existing rows and EXPORT jobs stay valid.
+  generationId  String?  @unique
+  generation    Generation? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+  status        String   @default("QUEUED") // QUEUED, RUNNING, DONE, FAILED
+  progress      Int      @default(0)
+  error         String?
+  resultPath    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([targetId])
+  @@index([backendJobId])
+  @@index([status])
+  @@index([kind])
 }
 
 // ========================================
@@ -148,7 +331,7 @@ model Setting {
   key       String   @id
   value     String   // JSON string
   category  String?  // "general", "model", "llm", "ui"
-  
+
   updatedAt DateTime @updatedAt
 }
 
@@ -162,29 +345,30 @@ model PromptTemplate {
   category    String   @default("general") // "general", "cinematic", "product", "motion"
   isFavorite  Boolean  @default(false)
   usageCount  Int      @default(0)
-  
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   @@index([category])
   @@index([isFavorite])
 }
 
 // ========================================
 // LLM PROMPT TEMPLATES - system prompts สำหรับ LLM
+// Seeded with a script-breakdown system prompt.
 // ========================================
 model LLMPromptTemplate {
   id          String   @id @default(cuid())
   name        String
   description String?
   template    String
-  category    String   @default("video") // "video", "style", "motion"
+  category    String   @default("video") // "video", "style", "motion", "script"
   isDefault   Boolean  @default(false)
   isActive    Boolean  @default(true)
-  
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   @@index([category])
   @@index([isActive])
 }
